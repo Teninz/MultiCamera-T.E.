@@ -17,7 +17,7 @@
 #include <wchar.h>
 #include "payload.h"
 
-static const wchar_t *title=L"OBS LAN Camera 0.2.0 — установка";
+static const wchar_t *title=L"OBS LAN Camera 0.3.0 — установка";
 static int elevate(void)
 {
     wchar_t exe[2048];GetModuleFileNameW(NULL,exe,2048);
@@ -72,7 +72,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
     wchar_t obs[1024]={0};bool running=obs_running(obs);PWSTR program_files=NULL;
     if(!*obs&&SUCCEEDED(SHGetKnownFolderPath(&FOLDERID_ProgramFiles,0,NULL,&program_files))){swprintf(obs,1024,L"%ls\\obs-studio",program_files);CoTaskMemFree(program_files);}
     if(!compatible(obs)&&!choose_obs(obs)){MessageBoxW(NULL,L"Не найдена совместимая установка OBS. Нужен OBS Studio 33 для Windows x64 с FFmpeg 8 (avcodec-62).",title,MB_OK|MB_ICONWARNING);return 3;}
-    wchar_t intro[1800];swprintf(intro,1800,L"Установить OBS LAN Camera 0.2.0?\n\nНайден OBS:\n%ls\n\nПриёмник камеры Android появится в меню источников OBS. Настройки OBS и ключи подключения сохранятся.\n\nПрограмма распространяется по GPL-2.0-or-later. Исходники: github.com/Teninz/obs-lan-camera",obs);
+    wchar_t intro[1800];swprintf(intro,1800,L"Установить OBS LAN Camera 0.3.0?\n\nНайден OBS:\n%ls\n\nПриёмник камеры Android появится в меню источников OBS. Настройки OBS и ключи подключения сохранятся.\n\nПрограмма распространяется по GPL-2.0-or-later. Исходники: github.com/Teninz/obs-lan-camera",obs);
     if(MessageBoxW(NULL,intro,title,MB_YESNO|MB_ICONINFORMATION|MB_DEFBUTTON1)!=IDYES)return 0;
     while(running){if(MessageBoxW(NULL,L"Закройте OBS перед установкой, затем нажмите «Повторить».\nУстановщик не завершает OBS принудительно.",title,MB_RETRYCANCEL|MB_ICONINFORMATION)!=IDRETRY)return 0;running=obs_running(obs);}
     PWSTR program_data=NULL;if(FAILED(SHGetKnownFolderPath(&FOLDERID_ProgramData,0,NULL,&program_data)))return 4;

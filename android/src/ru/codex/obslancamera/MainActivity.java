@@ -5,6 +5,7 @@ import android.app.*;
 import android.os.*;
 import android.content.*;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.*;
 import android.hardware.camera2.*;
 import android.media.*;
@@ -13,92 +14,161 @@ import android.util.*;
 import android.view.*;
 import android.widget.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.*;
 
-public class MainActivity extends Activity implements TextureView.SurfaceTextureListener {
-    private EditText address,token;
-    private TextView status;
-    private Spinner cameraChoice,quality;
-    private TextureView preview;
-    private Button connect,stop,scan;
-    private volatile boolean running;
-    private volatile Thread worker;
-    private volatile Wire wire;
-    private volatile int sensorOrientation=90;
-    private volatile boolean front;
-    private final Handler ui=new Handler(Looper.getMainLooper());
+public class MainActivity extends Activity implements TextureView.SurfaceTextureListener,CameraOverlay.Actions {
+    private static final int CAMERA_PERMISSION=10,MIC_PERMISSION=11,SCAN=12;
+    private TextureView preview;private CameraOverlay overlay;private CameraManager cameras;
+    private PhoneUpdater updater;
+    private String endpoint="",secret="",cameraId="";private CameraCharacteristics characteristics;
+    private List<CameraModes.Mode> availableModes=new ArrayList<>();private CameraModes.Mode selectedMode;
+    private volatile boolean running,captureReady,microphone;private boolean front,fill=true,flashlight,resumed,micPermissionPending,restartAfterMicPermission;
+    private volatile Thread worker;private volatile Wire wire;private PhoneAudio audio;
+    private final Object audioLock=new Object();private final Handler ui=new Handler(Looper.getMainLooper());
+    private final ArrayDeque<String> diagnostics=new ArrayDeque<>();
+    private volatile int sensorOrientation=90,physicalOrientation=-1;private int previewW=1280,previewH=720;
+    private OrientationEventListener orientationListener;private Runnable pendingRestart;private String finalMessage;
+    private volatile float zoomRatio=1;private float minZoom=1,maxZoom=1;private boolean hasFlash;
+    private volatile Handler cameraHandler;private volatile CameraCaptureSession activeSession;private volatile CaptureRequest.Builder activeRequest;
     private final Runnable watchdog=new Runnable(){public void run(){Wire w=wire;if(w!=null&&w.writeStarted!=0&&System.nanoTime()-w.writeStarted>1500000000L)w.close();if(running)ui.postDelayed(this,300);}};
-    private static final int PERMISSION=10,SCAN=11;
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
-    private TextView text(String s,int sp,int color){TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);return v;}
-    private void message(String s){ui.post(()->status.setText(s));}
-    @Override public void onCreate(Bundle state){super.onCreate(state);getWindow().setStatusBarColor(0xfff3f6f8);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(20),dp(12),dp(20),dp(12));root.setBackgroundColor(0xfff3f6f8);
-        root.addView(text("OBS LAN CAMERA",12,0xff147b6c));root.addView(text("Камера для OBS",28,0xff203246));
-        status=text("Подключите смартфон к Wi-Fi той же сети, что и ПК.",14,0xff637486);root.addView(status,new LinearLayout.LayoutParams(-1,dp(48)));
-        preview=new TextureView(this);preview.setSurfaceTextureListener(this);root.addView(preview,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout choices=new LinearLayout(this);cameraChoice=new Spinner(this);cameraChoice.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"Задняя камера","Передняя камера"}));
-        quality=new Spinner(this);quality.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"720p · 30 кадров/с","1080p · 30 кадров/с","480p · 30 кадров/с"}));choices.addView(cameraChoice,new LinearLayout.LayoutParams(0,dp(50),1));choices.addView(quality,new LinearLayout.LayoutParams(0,dp(50),1));root.addView(choices);
-        address=new EditText(this);address.setSingleLine();address.setTextSize(16);address.setHint("Адрес ПК, например 192.168.3.3:34871");address.setInputType(1);root.addView(address);
-        token=new EditText(this);token.setSingleLine();token.setTextSize(14);token.setHint("Ключ подключения из OBS");token.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);root.addView(token);
-        scan=new Button(this);scan.setText("Сканировать QR с компьютера");root.addView(scan);scan.setOnClickListener(v->{if(permission())startActivityForResult(new Intent(this,ScanActivity.class),SCAN);});
-        LinearLayout actions=new LinearLayout(this);connect=new Button(this);connect.setText("Подключить");stop=new Button(this);stop.setText("Остановить");stop.setEnabled(false);actions.addView(connect,new LinearLayout.LayoutParams(0,dp(52),1));actions.addView(stop,new LinearLayout.LayoutParams(0,dp(52),1));root.addView(actions);
-        TextView note=text("Видео идёт напрямую в OBS и шифруется. Микрофон не используется. Во время передачи оставьте приложение открытым.",12,0xff68788a);root.addView(note);setContentView(root);
-        SharedPreferences saved=getPreferences(0);address.setText(saved.getString("address",""));token.setText(saved.getString("token",""));
-        connect.setOnClickListener(v->start());stop.setOnClickListener(v->halt());if(getIntent().getData()!=null)pair(getIntent().getData().toString());
+    private void log(String text){synchronized(diagnostics){if(diagnostics.size()>=70)diagnostics.removeFirst();diagnostics.addLast(text);}Log.i("OBSLANCamera",text);}
+    private void detail(String text){ui.post(()->overlay.detail(text));}
+    @Override public void onCreate(Bundle state){
+        super.onCreate(state);getWindow().setStatusBarColor(Color.BLACK);getWindow().setNavigationBarColor(Color.BLACK);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xff070b10);preview=new TextureView(this);preview.setSurfaceTextureListener(this);root.addView(preview,new FrameLayout.LayoutParams(-1,-1));overlay=new CameraOverlay(this,this);root.addView(overlay,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
+        root.setOnApplyWindowInsetsListener((v,insets)->{int l,t,r,b;if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.displayCutout());l=bars.left;t=bars.top;r=bars.right;b=bars.bottom;}else{l=insets.getSystemWindowInsetLeft();t=insets.getSystemWindowInsetTop();r=insets.getSystemWindowInsetRight();b=insets.getSystemWindowInsetBottom();}overlay.setPadding(l,t,r,b);return insets;});
+        cameras=(CameraManager)getSystemService(CAMERA_SERVICE);endpoint=getPreferences(0).getString("address","");secret=getPreferences(0).getString("token","");
+        log("OBS LAN Camera 0.3.0; "+Build.MANUFACTURER+" "+Build.MODEL+"; Android "+Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
+        orientationListener=new OrientationEventListener(this){public void onOrientationChanged(int degrees){if(degrees==ORIENTATION_UNKNOWN)return;int value=((degrees+45)/90*90)%360;if(physicalOrientation!=value){physicalOrientation=value;updatePreview();}}};
+        refreshCamera();layoutOrientation();if(getIntent().getData()!=null)pair(getIntent().getData().toString());updater=new PhoneUpdater(this,this::log);updater.check(false);
     }
-    private boolean permission(){if(checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)return true;requestPermissions(new String[]{Manifest.permission.CAMERA},PERMISSION);return false;}
-    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){super.onRequestPermissionsResult(request,permissions,grants);if(request==PERMISSION){if(grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED)message("Камера разрешена. Нажмите подключение или сканирование QR.");else message("Для передачи видео нужен доступ к камере.");}}
-    private void pair(String value){try{Uri u=Uri.parse(value);if(!"obslan".equals(u.getScheme())||u.getHost()==null||u.getFragment()==null||!u.getFragment().matches("[0-9a-f]{32}"))throw new IllegalArgumentException();address.setText(u.getHost()+":"+(u.getPort()>0?u.getPort():34871));token.setText(u.getFragment());message("Сопряжение заполнено. Нажмите «Подключить».");}catch(Exception e){message("Это не QR подключения OBS LAN Camera.");}}
+    @Override protected void onResume(){super.onResume();resumed=true;if(orientationListener.canDetectOrientation())orientationListener.enable();updatePreview();resumeAfterMicPermission();if(updater!=null)updater.resume();}
+    private void resumeAfterMicPermission(){if(resumed&&!micPermissionPending&&restartAfterMicPermission){restartAfterMicPermission=false;afterStop(()->start());}}
+    @Override protected void onPause(){resumed=false;if(updater!=null)updater.pause();orientationListener.disable();halt();super.onPause();}
+    @Override protected void onDestroy(){if(updater!=null)updater.close();super.onDestroy();}
+    @Override public void onConfigurationChanged(Configuration config){super.onConfigurationChanged(config);layoutOrientation();updatePreview();}
+    private void layoutOrientation(){overlay.landscape(getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);}
+    private void refreshCamera(){
+        try{
+            cameraId="";for(String id:cameras.getCameraIdList()){CameraCharacteristics c=cameras.getCameraCharacteristics(id);Integer facing=c.get(CameraCharacteristics.LENS_FACING);if(facing!=null&&facing==(front?CameraCharacteristics.LENS_FACING_FRONT:CameraCharacteristics.LENS_FACING_BACK)){cameraId=id;if("0".equals(id)&&!front)break;if(front)break;}}
+            if(cameraId.isEmpty())throw new Exception("Эта камера недоступна");characteristics=cameras.getCameraCharacteristics(cameraId);Integer sensor=characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);sensorOrientation=sensor==null?90:sensor;
+            availableModes=CameraModes.discover(characteristics);hasFlash=Boolean.TRUE.equals(characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE));
+            Range<Float> range=Build.VERSION.SDK_INT>=30?characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE):null;
+            Float maximum=characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);minZoom=range!=null?range.getLower():1;maxZoom=range!=null?range.getUpper():maximum==null?1:maximum;zoomRatio=Math.max(minZoom,Math.min(maxZoom,zoomRatio));
+            overlay.capabilities(front,hasFlash,minZoom,maxZoom,zoomRatio);overlay.mode(selectedMode==null?"АВТО · 30":selectedMode.shortLabel());overlay.microphone(microphone);overlay.fill(fill);overlay.torch(flashlight);
+            log("Камера "+cameraId+": "+availableModes.size()+" режимов; sensor="+sensorOrientation+"; zoom="+minZoom+".."+maxZoom);
+        }catch(Exception error){log("Камера: "+EncoderCapture.diagnostic(error));detail("Не удалось определить камеру. Откройте диагностику.");}
+    }
+    private boolean cameraPermission(){if(checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)return true;requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);return false;}
+    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
+        super.onRequestPermissionsResult(request,permissions,grants);boolean granted=grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED;
+        if(request==CAMERA_PERMISSION){if(granted){refreshCamera();detail("Камера разрешена. Нажмите кнопку запуска.");}else detail("Для передачи изображения нужен доступ к камере.");}
+        if(request==MIC_PERMISSION){micPermissionPending=false;microphone=granted;overlay.microphone(granted);if(granted){startAudio();detail("Микрофон включён");}else{stopAudio();detail("Доступ к микрофону не разрешён");}resumeAfterMicPermission();}
+    }
+    public void shutter(){if(running)halt();else if(endpoint.isEmpty()||secret.isEmpty())settings();else start();}
+    public void scan(){if(!cameraPermission())return;afterStop(()->startActivityForResult(new Intent(this,ScanActivity.class),SCAN));}
+    public void flip(){afterStop(()->{front=!front;flashlight=false;zoomRatio=1;selectedMode=null;refreshCamera();if(!endpoint.isEmpty()&&!secret.isEmpty())start();});}
+    public void fit(){fill=!fill;overlay.fill(fill);updatePreview();}
+    public void torch(){if(!hasFlash)return;flashlight=!flashlight;overlay.torch(flashlight);applyLiveControls();}
+    public void zoom(float value){zoomRatio=Math.max(minZoom,Math.min(maxZoom,value));overlay.zoom(zoomRatio);applyLiveControls();}
+    public void mic(){
+        if(microphone){microphone=false;stopAudio();overlay.microphone(false);detail("Микрофон выключен");return;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){restartAfterMicPermission=running;micPermissionPending=true;requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC_PERMISSION);return;}
+        microphone=true;overlay.microphone(true);startAudio();
+    }
+    public void modes(){
+        if(availableModes.isEmpty()){refreshCamera();if(availableModes.isEmpty()){diagnostics();return;}}
+        String[] labels=new String[availableModes.size()+1];labels[0]="Автоматически · рекомендуется";for(int i=0;i<availableModes.size();i++)labels[i+1]=availableModes.get(i).label();
+        AlertDialog dialog=new AlertDialog.Builder(this,android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(front?"Режим передней камеры":"Режим основной камеры").setItems(labels,(d,which)->afterStop(()->{selectedMode=which==0?null:availableModes.get(which-1);overlay.mode(selectedMode==null?"АВТО · 30":selectedMode.shortLabel());if(!endpoint.isEmpty()&&!secret.isEmpty())start();})).setNegativeButton("Отмена",null).create();dialog.show();
+    }
+    private void afterStop(Runnable action){if(worker!=null){pendingRestart=action;halt();}else action.run();}
+    public void settings(){
+        LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(22),dp(12),dp(22),dp(12));
+        TextView hint=new TextView(this);hint.setText("В OBS откройте окно «Подключение смартфона» и считайте QR подключения. Адрес и ключ также можно ввести вручную.");hint.setTextColor(0xffc3cbd2);hint.setTextSize(14);body.addView(hint);
+        EditText address=new EditText(this),key=new EditText(this);address.setText(endpoint);address.setHint("Адрес ПК:порт");address.setSingleLine();address.setTextColor(Color.WHITE);address.setHintTextColor(0xff95a4af);address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);key.setText(secret);key.setHint("Ключ из OBS");key.setSingleLine();key.setTextColor(Color.WHITE);key.setHintTextColor(0xff95a4af);key.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);body.addView(address);body.addView(key);
+        Button qr=new Button(this);qr.setText("Сканировать QR");body.addView(qr);Button diagnostic=new Button(this);diagnostic.setText("Диагностика");body.addView(diagnostic);Button updates=new Button(this);updates.setText("Обновления · "+updater.current());updates.setOnClickListener(v->updater.check(true));body.addView(updates);
+        AlertDialog dialog=new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Подключение к OBS").setView(body).setPositiveButton("Подключить",null).setNegativeButton("Закрыть",null).create();
+        qr.setOnClickListener(v->{dialog.dismiss();scan();});diagnostic.setOnClickListener(v->diagnostics());dialog.setOnShowListener(v->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button->{endpoint=address.getText().toString().trim();secret=key.getText().toString().trim().toLowerCase(Locale.ROOT);getPreferences(0).edit().putString("address",endpoint).putString("token",secret).apply();dialog.dismiss();afterStop(()->start());}));dialog.show();
+    }
+    private void diagnostics(){
+        StringBuilder info=new StringBuilder();synchronized(diagnostics){for(String line:diagnostics)info.append(line).append('\n');}
+        TextView text=new TextView(this);text.setText(info.toString());text.setTextColor(Color.WHITE);text.setTextSize(12);text.setTextIsSelectable(true);text.setPadding(dp(18),dp(12),dp(18),dp(12));ScrollView scroll=new ScrollView(this);scroll.addView(text);
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Диагностика камеры").setView(scroll).setPositiveButton("Закрыть",null).setNeutralButton("Копировать",(d,w)->((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("OBS LAN Camera diagnostics",info.toString()))).show();
+    }
+    private void pair(String value){try{Uri uri=Uri.parse(value);if(!"obslan".equals(uri.getScheme())||uri.getHost()==null||uri.getFragment()==null||!uri.getFragment().matches("[0-9a-fA-F]{32}"))throw new IllegalArgumentException();endpoint=uri.getHost()+":"+(uri.getPort()>0?uri.getPort():34871);secret=uri.getFragment().toLowerCase(Locale.ROOT);getPreferences(0).edit().putString("address",endpoint).putString("token",secret).apply();detail("Сопряжение сохранено. Нажмите круглую кнопку для запуска.");}catch(Exception e){detail("Это не QR подключения OBS LAN Camera.");}}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==SCAN&&result==RESULT_OK&&data!=null)pair(data.getStringExtra("pair"));}
-    private void controls(boolean active){connect.setEnabled(!active);stop.setEnabled(active);scan.setEnabled(!active);address.setEnabled(!active);token.setEnabled(!active);cameraChoice.setEnabled(!active);quality.setEnabled(!active);}
-    private void start(){if(running||worker!=null)return;if(!permission())return;if(!preview.isAvailable()){message("Ожидаем поверхность предпросмотра. Попробуйте ещё раз.");return;}
-        String endpoint=address.getText().toString().trim(),secret=token.getText().toString().trim().toLowerCase(Locale.ROOT);int port=34871;String host=endpoint;
-        try{int colon=endpoint.indexOf(':');if(colon>=0){host=endpoint.substring(0,colon);port=Integer.parseInt(endpoint.substring(colon+1));}if(port<1024||port>65535||!secret.matches("[0-9a-f]{32}"))throw new IllegalArgumentException();}catch(Exception e){message("Проверьте адрес ПК, порт и 32-символьный ключ.");return;}
-        getPreferences(0).edit().putString("address",endpoint).putString("token",secret).apply();running=true;controls(true);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);ui.post(watchdog);
-        final String target=host;final int targetPort=port,selection=quality.getSelectedItemPosition();final boolean useFront=cameraChoice.getSelectedItemPosition()==1;
-        worker=new Thread(()->{try{while(running){try{message("Подключаемся к OBS…");Wire channel=new Wire(target,targetPort,secret);wire=channel;if(!running){channel.close();break;}stream(channel,useFront,selection);}catch(Exception e){if(running)message("Связь прервана: "+friendly(e)+". Повтор через 2 секунды…");}finally{Wire w=wire;wire=null;if(w!=null)w.close();}if(running)try{Thread.sleep(2000);}catch(InterruptedException ignored){}}}finally{worker=null;ui.post(()->{running=false;controls(false);getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);status.setText("Передача остановлена.");});}},"obs-camera-stream");worker.start();
+    private void start(){
+        if(running||worker!=null||!resumed)return;if(!cameraPermission())return;if(!preview.isAvailable()){detail("Ожидаем предпросмотр. Нажмите запуск ещё раз.");return;}
+        String host=endpoint;int port=34871;try{int colon=endpoint.indexOf(':');if(colon>=0){host=endpoint.substring(0,colon);port=Integer.parseInt(endpoint.substring(colon+1));}if(port<1024||port>65535||!secret.matches("[0-9a-f]{32}"))throw new Exception();}catch(Exception e){detail("Проверьте адрес, порт и ключ подключения.");settings();return;}
+        final String target=host,key=secret,id=cameraId;final int targetPort=port;final CameraCharacteristics caps=characteristics;final CameraModes.Mode requested=selectedMode;
+        if(id.isEmpty()||caps==null){detail("Камера недоступна");return;}
+        running=true;finalMessage=null;overlay.active(true);overlay.status("Подключение…");getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);ui.post(watchdog);
+        worker=new Thread(()->{
+            Set<String> rejected=new LinkedHashSet<>();
+            try{while(running){
+                try{ui.post(()->overlay.status("Подключение…"));Wire channel=new Wire(target,targetPort,key);wire=channel;if(!running){channel.close();break;}stream(channel,id,caps,requested,rejected);}
+                catch(EncoderCapture.Failure error){rejected.add(error.key);log(error.getMessage());detail("Камера: пробуем другой совместимый режим…");report(error.getMessage());}
+                catch(EncoderCapture.Unavailable error){finalMessage=error.getMessage();log(finalMessage);report(finalMessage);running=false;}
+                catch(SecurityException error){finalMessage="Нет разрешения на камеру или микрофон";log(EncoderCapture.diagnostic(error));running=false;}
+                catch(Exception error){if(running){String reason=networkReason(error);log(reason);detail(reason+". Повтор через 2 секунды…");}}
+                finally{captureReady=false;stopAudio();Wire w=wire;wire=null;if(w!=null)w.close();}
+                if(running)try{Thread.sleep(2000);}catch(InterruptedException ignored){}
+            }}finally{ui.post(()->{worker=null;running=false;overlay.active(false);overlay.status("Не подключено");if(finalMessage!=null)overlay.detail(finalMessage);else overlay.detail("Передача остановлена");getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);Runnable next=pendingRestart;pendingRestart=null;if(next!=null&&resumed)next.run();});}
+        },"obs-camera-stream");worker.start();
     }
-    private String friendly(Exception e){if(e instanceof java.net.ConnectException)return "приёмник недоступен — проверьте IP, OBS и брандмауэр";if(e instanceof java.net.SocketTimeoutException)return "OBS не ответил — проверьте ключ и сеть";if(e instanceof java.io.EOFException)return "OBS отклонил ключ или уже подключён другой телефон";String s=e.getMessage();return s==null?e.getClass().getSimpleName():s;}
-    private void halt(){running=false;ui.removeCallbacks(watchdog);Wire w=wire;if(w!=null)w.close();Thread t=worker;if(t!=null)t.interrupt();message("Останавливаем камеру…");}
-    @Override protected void onPause(){super.onPause();halt();}
-    private int rotation(){int display=getWindowManager().getDefaultDisplay().getRotation()*90;return front?(sensorOrientation+display)%360:(sensorOrientation-display+360)%360;}
-    private void transform(int w,int h){ui.post(()->{if(!preview.isAvailable())return;Matrix matrix=new Matrix();RectF view=new RectF(0,0,preview.getWidth(),preview.getHeight());boolean swap=rotation()==90||rotation()==270;RectF video=new RectF(0,0,swap?h:w,swap?w:h);matrix.setRectToRect(video,view,Matrix.ScaleToFit.CENTER);/* TextureView starts with a stretched buffer; compensate below. */
-        Matrix m=new Matrix();float cx=view.centerX(),cy=view.centerY();int rot=rotation();m.postRotate(rot,cx,cy);if(rot==90||rot==270){float factor=Math.max(view.width()/h,view.height()/w);m.postScale((h*factor)/view.width(),(w*factor)/view.height(),cx,cy);}if(front)m.postScale(-1,1,cx,cy);preview.setTransform(m);});}
-    private void stream(Wire channel,boolean useFront,int selection) throws Exception {
-        CameraManager manager=(CameraManager)getSystemService(CAMERA_SERVICE);String id=null;CameraCharacteristics chars=null;
-        for(String candidate:manager.getCameraIdList()){CameraCharacteristics c=manager.getCameraCharacteristics(candidate);Integer facing=c.get(CameraCharacteristics.LENS_FACING);if(facing!=null&&facing==(useFront?CameraCharacteristics.LENS_FACING_FRONT:CameraCharacteristics.LENS_FACING_BACK)){id=candidate;chars=c;break;}}
-        if(id==null||chars==null)throw new Exception("Выбранная камера не найдена");front=useFront;Integer orientation=chars.get(CameraCharacteristics.SENSOR_ORIENTATION);sensorOrientation=orientation==null?90:orientation;
-        int targetW=selection==1?1920:selection==2?640:1280,targetH=selection==1?1080:selection==2?480:720;
-        Size[] sizes=chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(MediaCodec.class);if(sizes==null||sizes.length==0)throw new Exception("Камера не поддерживает видеокодирование");
-        Size best=null;double score=Double.MAX_VALUE;for(Size size:sizes){if(size.getWidth()>1920||size.getHeight()>1080||size.getWidth()<320)continue;double s=Math.abs(Math.log((double)size.getWidth()*size.getHeight()/(targetW*targetH)))+Math.abs((double)size.getWidth()/size.getHeight()-(double)targetW/targetH)*4;if(s<score){score=s;best=size;}}
-        if(best==null)throw new Exception("Не найден подходящий размер камеры");final int w=best.getWidth(),h=best.getHeight();
-        MediaCodec encoder=null;Surface input=null,view=null;HandlerThread cameraThread=new HandlerThread("obs-camera-control");cameraThread.start();Handler cameraHandler=new Handler(cameraThread.getLooper());
-        AtomicReference<CameraDevice> device=new AtomicReference<>();AtomicReference<CameraCaptureSession> session=new AtomicReference<>();AtomicReference<Exception> failure=new AtomicReference<>();CountDownLatch opened=new CountDownLatch(1),configured=new CountDownLatch(1);
-        try {
-            encoder=MediaCodec.createEncoderByType("video/avc");MediaFormat format=MediaFormat.createVideoFormat("video/avc",w,h);format.setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);format.setInteger(MediaFormat.KEY_BIT_RATE,selection==1?8000000:selection==2?2000000:4500000);format.setInteger(MediaFormat.KEY_FRAME_RATE,30);format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,1);format.setInteger(MediaFormat.KEY_COLOR_STANDARD,MediaFormat.COLOR_STANDARD_BT709);format.setInteger(MediaFormat.KEY_COLOR_RANGE,MediaFormat.COLOR_RANGE_LIMITED);format.setInteger(MediaFormat.KEY_PRIORITY,0);format.setInteger(MediaFormat.KEY_PROFILE,MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);if(Build.VERSION.SDK_INT>=29)format.setInteger(MediaFormat.KEY_MAX_B_FRAMES,0);
-            encoder.configure(format,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE);input=encoder.createInputSurface();encoder.start();
-            if(!preview.isAvailable())throw new Exception("Предпросмотр закрыт");SurfaceTexture texture=preview.getSurfaceTexture();texture.setDefaultBufferSize(w,h);view=new Surface(texture);transform(w,h);
-            manager.openCamera(id,new CameraDevice.StateCallback(){public void onOpened(CameraDevice d){device.set(d);opened.countDown();}public void onDisconnected(CameraDevice d){failure.set(new Exception("Камера отключена"));d.close();opened.countDown();}public void onError(CameraDevice d,int error){failure.set(new Exception("Камера занята или недоступна: "+error));d.close();opened.countDown();}},cameraHandler);
+    private String networkReason(Exception error){if(error instanceof java.net.ConnectException)return "OBS недоступен: проверьте адрес и домашнюю сеть";if(error instanceof java.net.SocketTimeoutException)return "OBS не ответил: проверьте ключ и сеть";if(error instanceof java.io.EOFException)return "OBS закрыл подключение: проверьте ключ и версию плагина";return (error instanceof java.io.IOException?"Сеть: ":"Камера: ")+EncoderCapture.diagnostic(error);}
+    private void report(String text){Wire w=wire;if(w!=null)try{w.send(3,0,0,text.substring(0,Math.min(500,text.length())).getBytes(StandardCharsets.UTF_8));}catch(Exception ignored){} }
+    private void halt(){running=false;captureReady=false;ui.removeCallbacks(watchdog);stopAudio();Wire w=wire;if(w!=null)w.close();Thread t=worker;if(t!=null)t.interrupt();}
+    private void startAudio(){synchronized(audioLock){Wire w=wire;if(microphone&&captureReady&&w!=null&&audio==null)audio=new PhoneAudio(w,this::log,()->ui.post(()->{microphone=false;overlay.microphone(false);stopAudio();detail("Микрофон недоступен. Видео продолжает работать.");}));}}
+    private void stopAudio(){synchronized(audioLock){if(audio!=null){audio.close();audio=null;}}}
+    private int rotation(){if(physicalOrientation>=0)return front?(sensorOrientation-physicalOrientation+360)%360:(sensorOrientation+physicalOrientation)%360;int display=getWindowManager().getDefaultDisplay().getRotation()*90;return front?(sensorOrientation+display)%360:(sensorOrientation-display+360)%360;}
+    private void updatePreview(){ui.post(()->{if(!preview.isAvailable())return;int display=getWindowManager().getDefaultDisplay().getRotation()*90;int angle=front?(sensorOrientation+display)%360:(sensorOrientation-display+360)%360;Matrix matrix=new Matrix();matrix.setValues(PreviewGeometry.matrix(previewW,previewH,preview.getWidth(),preview.getHeight(),angle,front,fill));preview.setTransform(matrix);});}
+    private void applyControls(CaptureRequest.Builder b,CameraCharacteristics caps,int fps){
+        b.set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO);
+        int[] af=caps.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);if(af!=null)for(int mode:af)if(mode==CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO){b.set(CaptureRequest.CONTROL_AF_MODE,mode);break;}
+        Range<Integer>[] ranges=caps.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);Range<Integer> selected=null;if(ranges!=null)for(Range<Integer> r:ranges)if(r.contains(fps)&&(selected==null||Math.abs(r.getUpper()-fps)<Math.abs(selected.getUpper()-fps)||r.getUpper().equals(selected.getUpper())&&r.getLower()>selected.getLower()))selected=r;if(selected!=null)b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,selected);
+        setZoomTorch(b,caps);
+    }
+    private void setZoomTorch(CaptureRequest.Builder b,CameraCharacteristics caps){
+        Range<Float> range=Build.VERSION.SDK_INT>=30?caps.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE):null;
+        if(range!=null)b.set(CaptureRequest.CONTROL_ZOOM_RATIO,range.clamp(zoomRatio));else{Rect active=caps.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);if(active!=null){int halfW=(int)(active.width()/Math.max(1,zoomRatio)/2),halfH=(int)(active.height()/Math.max(1,zoomRatio)/2);b.set(CaptureRequest.SCALER_CROP_REGION,new Rect(active.centerX()-halfW,active.centerY()-halfH,active.centerX()+halfW,active.centerY()+halfH));}}
+        if(Boolean.TRUE.equals(caps.get(CameraCharacteristics.FLASH_INFO_AVAILABLE)))b.set(CaptureRequest.FLASH_MODE,flashlight?CaptureRequest.FLASH_MODE_TORCH:CaptureRequest.FLASH_MODE_OFF);
+    }
+    private void applyLiveControls(){Handler handler=cameraHandler;if(handler!=null)handler.post(()->{try{CameraCaptureSession s=activeSession;CaptureRequest.Builder b=activeRequest;if(s!=null&&b!=null){setZoomTorch(b,characteristics);s.setRepeatingRequest(b.build(),null,handler);}}catch(Exception e){log("Управление камерой: "+EncoderCapture.diagnostic(e));}});}
+    private void stream(Wire channel,String id,CameraCharacteristics caps,CameraModes.Mode requested,Set<String> rejected) throws Exception {
+        EncoderCapture capture=EncoderCapture.open(caps,requested,rejected,this::log);previewW=capture.width;previewH=capture.height;updatePreview();
+        HandlerThread thread=new HandlerThread("obs-camera-control");thread.start();Handler handler=new Handler(thread.getLooper());cameraHandler=handler;
+        AtomicReference<CameraDevice> device=new AtomicReference<>();AtomicReference<CameraCaptureSession> session=new AtomicReference<>();AtomicReference<Exception> failure=new AtomicReference<>();AtomicBoolean closing=new AtomicBoolean();CountDownLatch opened=new CountDownLatch(1),configured=new CountDownLatch(1),closed=new CountDownLatch(1);Surface view=null;
+        try{
+            if(!running)return;if(!preview.isAvailable())throw new Exception("Предпросмотр закрыт");SurfaceTexture texture=preview.getSurfaceTexture();texture.setDefaultBufferSize(capture.width,capture.height);view=new Surface(texture);capture.receiveImages(handler,failure);
+            cameras.openCamera(id,new CameraDevice.StateCallback(){public void onOpened(CameraDevice d){if(closing.get()||!running)d.close();else device.set(d);opened.countDown();}public void onDisconnected(CameraDevice d){failure.set(new Exception("Камера отключена"));d.close();opened.countDown();}public void onError(CameraDevice d,int error){failure.set(new Exception("Камера занята или недоступна: "+error));d.close();opened.countDown();}public void onClosed(CameraDevice d){closed.countDown();}},handler);
             if(!opened.await(5,TimeUnit.SECONDS)||device.get()==null||failure.get()!=null)throw failure.get()!=null?failure.get():new Exception("Камера не ответила");
-            final Surface encSurface=input,previewSurface=view;final CameraCharacteristics caps=chars;
-            device.get().createCaptureSession(Arrays.asList(input,view),new CameraCaptureSession.StateCallback(){public void onConfigured(CameraCaptureSession s){session.set(s);try{CaptureRequest.Builder b=device.get().createCaptureRequest(CameraDevice.TEMPLATE_RECORD);b.addTarget(encSurface);b.addTarget(previewSurface);b.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
-                Range<Integer>[] ranges=caps.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);Range<Integer> fps=null;if(ranges!=null)for(Range<Integer> r:ranges)if(r.getUpper()==30&&(fps==null||r.getLower()>fps.getLower()))fps=r;if(fps!=null)b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,fps);s.setRepeatingRequest(b.build(),null,cameraHandler);}catch(Exception e){failure.set(e);}configured.countDown();}public void onConfigureFailed(CameraCaptureSession s){failure.set(new Exception("Камера не поддерживает этот режим. Попробуйте 480p."));configured.countDown();}},cameraHandler);
-            if(!configured.await(5,TimeUnit.SECONDS)||failure.get()!=null)throw failure.get()!=null?failure.get():new Exception("Не удалось запустить видеопоток");
-            message("В эфире камеры: "+w+" × "+h+" · H.264 · без микрофона");MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();long frames=0,lastUpdate=System.nanoTime();
-            while(running&&failure.get()==null){int index=encoder.dequeueOutputBuffer(info,10000);if(index==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED){MediaFormat actual=encoder.getOutputFormat();for(String csd:new String[]{"csd-0","csd-1"}){ByteBuffer b=actual.getByteBuffer(csd);if(b!=null){ByteBuffer copy=b.duplicate();byte[] bytes=new byte[copy.remaining()];copy.get(bytes);channel.send(1,rotation(),0,bytes);}}}
-                else if(index>=0){try{ByteBuffer b=encoder.getOutputBuffer(index);if(b!=null&&info.size>0){b.position(info.offset);b.limit(info.offset+info.size);byte[] bytes=new byte[info.size];b.get(bytes);int type=(info.flags&MediaCodec.BUFFER_FLAG_CODEC_CONFIG)!=0?1:2;channel.send(type,rotation(),info.presentationTimeUs,bytes);if(type==2)frames++;}}finally{encoder.releaseOutputBuffer(index,false);}}
-                long now=System.nanoTime();if(now-lastUpdate>2000000000L){double fps=frames*1e9/(now-lastUpdate);message(String.format(Locale.ROOT,"Подключено к OBS · %d × %d · %.0f кадров/с",w,h,fps));frames=0;lastUpdate=now;}}
+            final Surface previewSurface=view;
+            device.get().createCaptureSession(Arrays.asList(capture.surface,view),new CameraCaptureSession.StateCallback(){public void onConfigured(CameraCaptureSession s){if(closing.get()){s.close();configured.countDown();return;}session.set(s);try{CaptureRequest.Builder request=device.get().createCaptureRequest(CameraDevice.TEMPLATE_RECORD);request.addTarget(capture.surface);request.addTarget(previewSurface);applyControls(request,caps,capture.fps);activeSession=s;activeRequest=request;s.setRepeatingRequest(request.build(),null,handler);}catch(Exception e){failure.set(new EncoderCapture.Failure(capture.key,"Не удалось настроить режим камеры: "+EncoderCapture.diagnostic(e),e));}configured.countDown();}public void onConfigureFailed(CameraCaptureSession s){failure.set(new EncoderCapture.Failure(capture.key,"Камера отклонила "+capture.width+"×"+capture.height,null));configured.countDown();}},handler);
+            if(!configured.await(5,TimeUnit.SECONDS)||failure.get()!=null)throw failure.get()!=null?failure.get():new EncoderCapture.Failure(capture.key,"Истекло время настройки камеры",null);
+            captureReady=true;startAudio();ui.post(()->{overlay.status("Передача в OBS");overlay.mode(new CameraModes.Mode(capture.width,capture.height,capture.fps).shortLabel());});
+            MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();long frames=0,last=System.nanoTime(),ptsOffset=Long.MIN_VALUE;
+            while(running&&failure.get()==null){int index=capture.codec.dequeueOutputBuffer(info,10000);
+                if(index==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED){MediaFormat format=capture.codec.getOutputFormat();for(String key:new String[]{"csd-0","csd-1"}){ByteBuffer b=format.getByteBuffer(key);if(b!=null){ByteBuffer copy=b.duplicate();byte[] bytes=new byte[copy.remaining()];copy.get(bytes);channel.send(1,rotation(),0,bytes);}}}
+                else if(index>=0){try{ByteBuffer b=capture.codec.getOutputBuffer(index);if(b!=null&&info.size>0){b.position(info.offset);b.limit(info.offset+info.size);byte[] bytes=new byte[info.size];b.get(bytes);int type=(info.flags&MediaCodec.BUFFER_FLAG_CODEC_CONFIG)!=0?1:2;long timestamp=info.presentationTimeUs;if(type==2){long now=SystemClock.elapsedRealtimeNanos()/1000;if(ptsOffset==Long.MIN_VALUE)ptsOffset=Math.abs(now-timestamp)<10000000L?0:now-timestamp-1000000L/capture.fps;timestamp+=ptsOffset;}channel.send(type,rotation(),timestamp,bytes);if(type==2)frames++;}}finally{capture.codec.releaseOutputBuffer(index,false);}}
+                long now=System.nanoTime();if(now-last>2000000000L){double fps=frames*1e9/(now-last);detail(String.format(Locale.ROOT,"%d × %d · %.0f кадров/с · микрофон %s",capture.width,capture.height,fps,microphone?"вкл":"выкл"));frames=0;last=now;}
+            }
             if(failure.get()!=null)throw failure.get();
-        } finally {
-            CameraCaptureSession s=session.get();if(s!=null)try{s.stopRepeating();s.close();}catch(Exception ignored){}CameraDevice d=device.get();if(d!=null)d.close();
-            if(encoder!=null){try{encoder.stop();}catch(Exception ignored){}encoder.release();}if(input!=null)input.release();if(view!=null)view.release();cameraThread.quitSafely();cameraThread.join(1200);
+        }catch(MediaCodec.CodecException error){throw new EncoderCapture.Failure(capture.key,"Кодировщик: "+EncoderCapture.diagnostic(error),error);}
+        catch(IllegalStateException error){throw new EncoderCapture.Failure(capture.key,"Состояние кодировщика: "+EncoderCapture.diagnostic(error),error);}
+        finally{
+            closing.set(true);captureReady=false;stopAudio();activeSession=null;activeRequest=null;cameraHandler=null;
+            CameraCaptureSession s=session.get();if(s!=null)try{s.stopRepeating();s.close();}catch(Exception ignored){}CameraDevice d=device.get();if(d!=null){d.close();try{closed.await(1200,TimeUnit.MILLISECONDS);}catch(InterruptedException ignored){}}
+            capture.close();if(view!=null)view.release();thread.quitSafely();try{thread.join(1500);}catch(InterruptedException ignored){}
         }
     }
-    public void onSurfaceTextureAvailable(SurfaceTexture texture,int w,int h){}
-    public void onSurfaceTextureSizeChanged(SurfaceTexture texture,int w,int h){}
+    public void onSurfaceTextureAvailable(SurfaceTexture texture,int w,int h){updatePreview();}
+    public void onSurfaceTextureSizeChanged(SurfaceTexture texture,int w,int h){layoutOrientation();updatePreview();}
     public boolean onSurfaceTextureDestroyed(SurfaceTexture texture){halt();return true;}
     public void onSurfaceTextureUpdated(SurfaceTexture texture){}
 }

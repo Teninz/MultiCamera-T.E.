@@ -15,25 +15,11 @@
 #include <string.h>
 #include "release.h"
 #include "updater.h"
-#include "qrcodegen.h"
+#include "pairing.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-lan-camera", "en-US")
 MODULE_EXPORT const char *obs_module_description(void) { return "OBS LAN Camera " OLC_VERSION ": encrypted Android camera, GitHub downloads and updates"; }
-static char qr_path[2048];
-static void make_download_qr(void)
-{
-    uint8_t temp[qrcodegen_BUFFER_LEN_MAX],qr[qrcodegen_BUFFER_LEN_MAX];
-    if(!qrcodegen_encodeText(OLC_APK_URL,temp,qr,qrcodegen_Ecc_MEDIUM,qrcodegen_VERSION_MIN,qrcodegen_VERSION_MAX,qrcodegen_Mask_AUTO,true))return;
-    char *path=obs_module_config_path("android-download.bmp");if(!path)return;
-    char *dir=bstrdup(path),*last=strrchr(dir,'/'),*back=strrchr(dir,'\\');if(back&&(!last||back>last))last=back;if(last){*last=0;os_mkdirs(dir);}bfree(dir);
-    int modules=qrcodegen_getSize(qr),width=(modules+8)*4,stride=(width*3+3)&~3;size_t count=(size_t)stride*width;
-    uint8_t header[54]={0};header[0]='B';header[1]='M';uint32_t size=(uint32_t)(54+count),offset=54,hs=40,bits=24;
-    memcpy(header+2,&size,4);memcpy(header+10,&offset,4);memcpy(header+14,&hs,4);memcpy(header+18,&width,4);memcpy(header+22,&width,4);header[26]=1;memcpy(header+28,&bits,2);
-    uint8_t *pixels=bmalloc(count);memset(pixels,255,count);
-    for(int y=0;y<width;y++)for(int x=0;x<width;x++){int mx=x/4-4,my=y/4-4;bool black=mx>=0&&my>=0&&mx<modules&&my<modules&&qrcodegen_getModule(qr,mx,my);if(black)memset(pixels+(width-1-y)*stride+x*3,0,3);}
-    FILE *f=os_fopen(path,"wb");if(f){bool ok=fwrite(header,1,54,f)==54&&fwrite(pixels,1,count,f)==count;fclose(f);if(ok)snprintf(qr_path,sizeof(qr_path),"%s",path);}bfree(pixels);bfree(path);
-}
 
 #define MAX_RECORD (4*1024*1024)
 #define MAGIC "OLC1"
@@ -42,12 +28,13 @@ struct camera {
     CRITICAL_SECTION lock;
     HANDLE listener_thread, video_thread;
     SOCKET listener, client;
-    volatile LONG stopping, connected;
+    volatile LONG stopping, connected,pairing_shown;
     int port;
     bool enabled;
     char token[33], address[64], status[256];
     unsigned width,height;
-    uint64_t frames;
+    uint64_t frames,audio_frames,last_audio_ns;
+    char last_error[2049];
 };
 struct session { struct camera *cam; SOCKET socket; };
 struct crypto { BCRYPT_ALG_HANDLE alg; BCRYPT_KEY_HANDLE key; };
@@ -137,20 +124,41 @@ static void rotate_plane(uint8_t *dst,const uint8_t *src,int stride,int w,int h,
         dst[dy*dw+dx]=src[y*stride+x];
     }
 }
-static bool output_frame(struct camera *c,AVFrame *av,int rotation)
+static bool output_frame(struct camera *c,AVFrame *av,int rotation,uint64_t timestamp)
 {
-    if(av->width<2||av->height<2||av->width>3840||av->height>2160||(av->width&1)||(av->height&1))return false;
+    if(av->width<2||av->height<2||av->width>8192||av->height>8192||(uint64_t)av->width*av->height>33177600||(av->width&1)||(av->height&1))return false;
     if(av->format!=AV_PIX_FMT_YUV420P && av->format!=AV_PIX_FMT_YUVJ420P)return false;
     int w=av->width,h=av->height,dw=(rotation==90||rotation==270)?h:w,dh=(rotation==90||rotation==270)?w:h;
     size_t pixels=(size_t)dw*dh;uint8_t *buffer=bmalloc(pixels+pixels/2);
-    struct obs_source_frame f={0};f.format=VIDEO_FORMAT_I420;f.width=dw;f.height=dh;f.timestamp=os_gettime_ns();
+    struct obs_source_frame f={0};f.format=VIDEO_FORMAT_I420;f.width=dw;f.height=dh;f.timestamp=timestamp;
     f.data[0]=buffer;f.data[1]=buffer+pixels;f.data[2]=buffer+pixels+pixels/4;
     f.linesize[0]=dw;f.linesize[1]=f.linesize[2]=dw/2;
     for(int i=0;i<3;i++)rotate_plane(f.data[i],av->data[i],av->linesize[i],i?w/2:w,i?h/2:h,rotation);
     f.full_range=av->format==AV_PIX_FMT_YUVJ420P;
     video_format_get_parameters(VIDEO_CS_709,f.full_range?VIDEO_RANGE_FULL:VIDEO_RANGE_PARTIAL,f.color_matrix,f.color_range_min,f.color_range_max);
     obs_source_output_video(c->source,&f);bfree(buffer);
-    c->width=dw;c->height=dh;c->frames++;return true;
+    EnterCriticalSection(&c->lock);c->width=dw;c->height=dh;c->frames++;LeaveCriticalSection(&c->lock);return true;
+}
+/* Video and audio share the handset's BOOTTIME clock and one session offset. */
+static uint64_t media_time(uint64_t us,int64_t *offset,bool *ready)
+{
+    uint64_t now=os_gettime_ns();if(us>INT64_MAX/1000)return now;int64_t sender=(int64_t)us*1000;
+    if(!*ready){*offset=(int64_t)now-sender;*ready=true;}
+    int64_t mapped=sender+*offset;if(mapped<0||llabs(mapped-(int64_t)now)>5000000000LL){*offset=(int64_t)now-sender;mapped=(int64_t)now;}
+    return (uint64_t)mapped;
+}
+static bool output_audio(struct camera *c,const uint8_t *body,size_t bytes,uint64_t timestamp)
+{
+    if(bytes<7)return false;uint32_t rate=((uint32_t)body[0]<<24)|((uint32_t)body[1]<<16)|((uint32_t)body[2]<<8)|body[3];unsigned channels=body[4];
+    if((rate!=48000&&rate!=44100&&rate!=16000)||(channels!=1&&channels!=2)||(bytes-5)%(channels*2))return false;
+    size_t frames=(bytes-5)/(channels*2);if(!frames||frames>rate/5)return false;
+    obs_data_t *settings=obs_source_get_settings(c->source);
+    if(!obs_data_get_bool(settings,"audio_routing_initialized")){
+        if(!obs_source_get_audio_mixers(c->source))obs_source_set_audio_mixers(c->source,1);
+        obs_data_set_bool(settings,"audio_routing_initialized",true);
+    }obs_data_release(settings);
+    struct obs_source_audio audio={0};audio.data[0]=body+5;audio.frames=(uint32_t)frames;audio.speakers=channels==1?SPEAKERS_MONO:SPEAKERS_STEREO;audio.format=AUDIO_FORMAT_16BIT;audio.samples_per_sec=rate;audio.timestamp=timestamp;obs_source_output_audio(c->source,&audio);
+    EnterCriticalSection(&c->lock);c->audio_frames+=frames;c->last_audio_ns=os_gettime_ns();LeaveCriticalSection(&c->lock);return true;
 }
 static bool read_record(SOCKET s,struct crypto *crypto,uint64_t seq,uint8_t **plain,ULONG *len)
 {
@@ -165,7 +173,7 @@ static DWORD WINAPI video_thread(void *data)
 {
     struct session *session=data;struct camera *c=session->cam;SOCKET s=session->socket;bfree(session);
     struct crypto crypto={0};AVCodecContext *decoder=NULL;AVFrame *frame=NULL;AVPacket *packet=NULL;uint8_t *plain=NULL,*config=NULL;size_t config_len=0;
-    uint8_t hello[20],server_nonce[16],material[48],key[32];
+    uint8_t hello[20],server_nonce[16],material[48],key[32];int64_t clock_offset=0;bool clock_ready=false,media_started=false;
     memcpy(hello,MAGIC,4);
     if(!transfer(s,hello+4,16,false)||!random_bytes(server_nonce,16))goto done;
     for(int i=0;i<16;i++){unsigned x;sscanf(c->token+2*i,"%2x",&x);material[i]=(uint8_t)x;}
@@ -184,15 +192,20 @@ static DWORD WINAPI video_thread(void *data)
     InterlockedExchange(&c->connected,1);state(c,obs_module_text("Connected"));
     for(uint64_t seq=1;!c->stopping;seq++){
         if(!read_record(s,&crypto,seq,&plain,&length))break;
-        if(length<11 || (plain[0]!=1 && plain[0]!=2))break;
+        if(length<11)break;
+        if(plain[0]==3){if(length>2059)break;EnterCriticalSection(&c->lock);memcpy(c->last_error,plain+11,length-11);c->last_error[length-11]=0;LeaveCriticalSection(&c->lock);blog(LOG_WARNING,"[OBS LAN Camera] Android: %s",c->last_error);bfree(plain);plain=NULL;continue;}
+        uint64_t pts=get64(plain+3);
+        if(plain[0]==4){if(!output_audio(c,plain+11,length-11,media_time(pts,&clock_offset,&clock_ready)))break;bfree(plain);plain=NULL;if(!media_started){DWORD timeout=5000;setsockopt(s,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(timeout));media_started=true;}continue;}
+        if(plain[0]!=1&&plain[0]!=2)break;
         int rotation=(plain[1]<<8)|plain[2];if(rotation!=0&&rotation!=90&&rotation!=180&&rotation!=270)break;
         int bytes=(int)length-11;if(bytes<=0)break;
         if(plain[0]==1){if(config_len+(size_t)bytes>65536)break;config=brealloc(config,config_len+bytes);memcpy(config+config_len,plain+11,bytes);config_len+=bytes;bfree(plain);plain=NULL;continue;}
         if(av_new_packet(packet,bytes+(int)config_len)<0)break;
         if(config_len)memcpy(packet->data,config,config_len);memcpy(packet->data+config_len,plain+11,bytes);config_len=0;bfree(plain);plain=NULL;
+        packet->pts=pts<=INT64_MAX?(int64_t)pts:AV_NOPTS_VALUE;packet->dts=AV_NOPTS_VALUE;
         int result=avcodec_send_packet(decoder,packet);av_packet_unref(packet);
         if(result<0 && result!=AVERROR(EAGAIN)){continue;}
-        while(avcodec_receive_frame(decoder,frame)==0){if(!output_frame(c,frame,rotation)){av_frame_unref(frame);goto done;}av_frame_unref(frame);}
+        while(avcodec_receive_frame(decoder,frame)==0){uint64_t frame_pts=frame->pts==AV_NOPTS_VALUE?pts:(uint64_t)frame->pts;if(!output_frame(c,frame,rotation,media_time(frame_pts,&clock_offset,&clock_ready))){av_frame_unref(frame);goto done;}av_frame_unref(frame);if(!media_started){DWORD timeout=5000;setsockopt(s,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(timeout));media_started=true;}}
     }
 done:
     bfree(config);bfree(plain);av_packet_free(&packet);av_frame_free(&frame);avcodec_free_context(&decoder);close_crypto(&crypto);
@@ -226,6 +239,11 @@ static void http_request(struct camera *c,SOCKET s,bool local,const char first[4
     if(!strcmp(path,"/api/pair")){
         if(!local){http_send(s,403,"text/plain","Open this page on the OBS computer",34);return;}
         char json[1100];snprintf(json,sizeof(json),"{\"address\":\"%s\",\"port\":%d,\"token\":\"%s\",\"connected\":%s,\"apk_url\":\"" OLC_APK_URL "\",\"version\":\"" OLC_VERSION "\"}",c->address,c->port,c->token,c->connected?"true":"false");http_send(s,200,"application/json; charset=utf-8",json,strlen(json));
+    }else if(!strcmp(path,"/api/status")){
+        if(!local){http_send(s,403,"text/plain","Local only",10);return;}
+        obs_data_t *status=obs_data_create();obs_data_set_string(status,"version",OLC_VERSION);obs_data_set_bool(status,"connected",c->connected!=0);
+        EnterCriticalSection(&c->lock);obs_data_set_int(status,"frames",c->frames);obs_data_set_int(status,"width",c->width);obs_data_set_int(status,"height",c->height);obs_data_set_int(status,"audio_frames",c->audio_frames);obs_data_set_bool(status,"audio_active",c->connected&&c->last_audio_ns&&os_gettime_ns()-c->last_audio_ns<200000000ULL);obs_data_set_string(status,"last_error",c->last_error);LeaveCriticalSection(&c->lock);
+        const char *json=obs_data_get_json(status);http_send(s,200,"application/json; charset=utf-8",json,strlen(json));obs_data_release(status);
     }else if(!strcmp(path,"/")||!strcmp(path,"/pair"))http_file(s,local?"pair.html":"download.html","text/html; charset=utf-8");
     else if(!strcmp(path,"/pair.js") && local)http_file(s,"pair.js","text/javascript; charset=utf-8");
     else if(!strcmp(path,"/qrcode.js") && local)http_file(s,"qrcode.js","text/javascript; charset=utf-8");
@@ -243,7 +261,7 @@ static DWORD WINAPI server_thread(void *data)
         if(!memcmp(peek,MAGIC,4)){
             if(c->video_thread && WaitForSingleObject(c->video_thread,0)==WAIT_OBJECT_0){CloseHandle(c->video_thread);c->video_thread=NULL;}
             if(c->video_thread){closesocket(s);continue;}
-            timeout=5000;setsockopt(s,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(timeout));
+            timeout=20000;setsockopt(s,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(timeout));
             EnterCriticalSection(&c->lock);c->client=s;LeaveCriticalSection(&c->lock);
             struct session *session=bmalloc(sizeof(*session));session->cam=c;session->socket=s;
             c->video_thread=CreateThread(NULL,0,video_thread,session,0,NULL);
@@ -295,9 +313,12 @@ static void destroy(void *data)
 }
 static const char *name(void *unused) { UNUSED_PARAMETER(unused);return obs_module_text("SourceName"); }
 static void defaults(obs_data_t *s) { obs_data_set_default_int(s,"port",34871);obs_data_set_default_bool(s,"listen",true); }
+static bool is_connected(void *data){return ((struct camera*)data)->connected!=0;}
+static void show_pairing(struct camera *c){olc_pairing_show(c->source,c->address,c->port,c->token,is_connected,c);}
+static void video_tick(void *data,float seconds){UNUSED_PARAMETER(seconds);struct camera *c=data;if(!c->pairing_shown&&olc_pairing_available()&&InterlockedCompareExchange(&c->pairing_shown,1,0)==0)show_pairing(c);}
 static bool open_pair(obs_properties_t *p,obs_property_t *property,void *data)
 {
-    UNUSED_PARAMETER(p);UNUSED_PARAMETER(property);struct camera *c=data;char url[100];snprintf(url,sizeof(url),"http://127.0.0.1:%d/pair",c->port);ShellExecuteA(NULL,"open",url,NULL,NULL,SW_SHOWNORMAL);return false;
+    UNUSED_PARAMETER(p);UNUSED_PARAMETER(property);show_pairing(data);return false;
 }
 static bool renew(obs_properties_t *p,obs_property_t *property,void *data)
 {
@@ -314,7 +335,6 @@ static obs_properties_t *properties(void *data)
     char text[700];if(c){EnterCriticalSection(&c->lock);snprintf(text,sizeof(text),"%s\n%s: %s:%d",c->status,obs_module_text("Address"),c->address,c->port);LeaveCriticalSection(&c->lock);}else snprintf(text,sizeof(text),"%s",obs_module_text("Waiting"));
     obs_properties_add_text(p,"state",text,OBS_TEXT_INFO);
     obs_properties_add_bool(p,"listen",obs_module_text("Listen"));
-    if(*qr_path){char html[2600];snprintf(html,sizeof(html),"<b>%s</b><br/><img src=\"%s\" width=\"180\" height=\"180\"/><br/>GitHub Releases · Android 8+",obs_module_text("DownloadApp"),qr_path);obs_properties_add_text(p,"download_qr",html,OBS_TEXT_INFO);}
     obs_properties_add_button2(p,"pair",obs_module_text("Pair"),open_pair,c);
     obs_properties_add_button2(p,"updates",obs_module_text("CheckUpdates"),check_updates,NULL);
     obs_properties_add_int(p,"port",obs_module_text("Port"),1024,65535,1);
@@ -322,11 +342,11 @@ static obs_properties_t *properties(void *data)
     obs_properties_add_button2(p,"renew",obs_module_text("Renew"),renew,c);
     obs_properties_add_text(p,"hint",obs_module_text("Hint"),OBS_TEXT_INFO);return p;
 }
-static struct obs_source_info source_info={.id="obs_lan_camera",.type=OBS_SOURCE_TYPE_INPUT,.output_flags=OBS_SOURCE_ASYNC_VIDEO,
-    .get_name=name,.create=create,.destroy=destroy,.get_defaults=defaults,.get_properties=properties,.update=update};
+static struct obs_source_info source_info={.id="obs_lan_camera",.type=OBS_SOURCE_TYPE_INPUT,.output_flags=OBS_SOURCE_ASYNC_VIDEO|OBS_SOURCE_AUDIO,
+    .get_name=name,.create=create,.destroy=destroy,.get_defaults=defaults,.get_properties=properties,.update=update,.video_tick=video_tick};
 bool obs_module_load(void)
 {
-    WSADATA data;if(WSAStartup(MAKEWORD(2,2),&data))return false;olc_updater_init();make_download_qr();obs_register_source(&source_info);blog(LOG_INFO,"[OBS LAN Camera] " OLC_VERSION " loaded (H.264, AES-256-GCM, GitHub updates)");return true;
+    WSADATA data;if(WSAStartup(MAKEWORD(2,2),&data))return false;olc_updater_init();olc_pairing_init();obs_register_source(&source_info);blog(LOG_INFO,"[OBS LAN Camera] " OLC_VERSION " loaded (H.264, PCM audio, AES-256-GCM, native pairing)");return true;
 }
-MODULE_EXPORT void obs_module_post_load(void) { olc_updater_check(true); }
-void obs_module_unload(void) { olc_updater_shutdown();WSACleanup(); }
+MODULE_EXPORT void obs_module_post_load(void) { olc_pairing_frontend_ready();olc_updater_check(true); }
+void obs_module_unload(void) { olc_pairing_shutdown();olc_updater_shutdown();WSACleanup(); }

@@ -42,7 +42,7 @@ public final class Wire implements Closeable {
         byte[] nonce=ByteBuffer.allocate(12).put(new byte[]{'O','L','C',(byte)direction}).putLong(seq).array();
         Cipher aes=Cipher.getInstance("AES/GCM/NoPadding");aes.init(mode,new SecretKeySpec(key,"AES"),new GCMParameterSpec(128,nonce));return aes.doFinal(data);
     }
-    public void send(int type,int rotation,long timestamp,byte[] encoded) throws Exception {
+    public synchronized void send(int type,int rotation,long timestamp,byte[] encoded) throws Exception {
         if(encoded.length>4*1024*1024-64)throw new IOException("Слишком большой видеокадр");
         byte[] plain=ByteBuffer.allocate(11+encoded.length).put((byte)type).putShort((short)rotation).putLong(timestamp).put(encoded).array();
         byte[] cipher=crypt(Cipher.ENCRYPT_MODE,1,sequence,plain);
