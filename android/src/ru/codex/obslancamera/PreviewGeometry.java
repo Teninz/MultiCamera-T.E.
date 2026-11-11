@@ -1,6 +1,13 @@
 package ru.codex.obslancamera;
-/** Pure affine geometry: TextureView's initial stretched coordinates -> uniform crop/fit. */
+/** Camera2 TextureView already applies its camera producer transform. */
 final class PreviewGeometry {
+    /* Match Android's Camera2 preview contract: compensate only DISPLAY rotation.
+       Applying SENSOR_ORIENTATION here again rotates the preview twice.
+       https://developer.android.com/media/camera/camera2/camera-preview */
+    static float[] textureMatrix(int sourceW,int sourceH,int viewW,int viewH,int sensorRotation,int displayRotation,boolean fill){
+        boolean sensorSwap=sensorRotation%180!=0;
+        return matrix(sensorSwap?sourceH:sourceW,sensorSwap?sourceW:sourceH,viewW,viewH,(360-displayRotation)%360,false,fill);
+    }
     static float[] matrix(int sourceW,int sourceH,int viewW,int viewH,int rotation,boolean mirror,boolean fill){
         if(sourceW<=0||sourceH<=0||viewW<=0||viewH<=0)return new float[]{1,0,0,0,1,0,0,0,1};
         boolean swap=rotation==90||rotation==270;float rw=swap?sourceH:sourceW,rh=swap?sourceW:sourceH;

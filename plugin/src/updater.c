@@ -41,7 +41,7 @@ static bool open_request(struct request *r,const wchar_t *url)
     wchar_t host[256],path[2000];u.lpszHostName=host;u.dwHostNameLength=255;u.lpszUrlPath=path;u.dwUrlPathLength=1999;
     if(!WinHttpCrackUrl(url,0,0,&u)||u.nScheme!=INTERNET_SCHEME_HTTPS)return false;
     host[u.dwHostNameLength]=0;path[u.dwUrlPathLength]=0;
-    r->session=WinHttpOpen(L"OBS-LAN-Camera/" L"0.3.0",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);if(!r->session)return false;
+    r->session=WinHttpOpen(L"OBS-LAN-Camera/" L"0.3.1",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);if(!r->session)return false;
     WinHttpSetTimeouts(r->session,4000,4000,4000,4000);
     r->connection=WinHttpConnect(r->session,host,u.nPort,0);if(!r->connection)goto fail;
     r->request=WinHttpOpenRequest(r->connection,L"GET",path,NULL,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE);if(!r->request)goto fail;

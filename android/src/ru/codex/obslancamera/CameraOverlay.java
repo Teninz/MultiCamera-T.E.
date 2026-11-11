@@ -8,9 +8,10 @@ import android.widget.*;
 import java.util.*;
 /** Familiar camera controls, kept separate from transport and preview geometry. */
 final class CameraOverlay extends FrameLayout {
-    interface Actions {void shutter();void scan();void flip();void modes();void settings();void mic();void torch();void fit();void zoom(float value);}
+    interface Actions {void shutter();void scan();void flip();void modes();void fps();void stabilization();void settings();void mic();void torch();void fit();void zoom(float value);}
     private final Actions actions;private final int accent=0xffb5f3cc;
-    private TextView state,detail,quality,mic,torch,fit,centerHint;private Shutter shutter;
+    private TextView state,detail,quality,mic,torch,fit,centerHint,fpsButton,stabilization;private Shutter shutter;
+    private String stabilizationText="Стаб. определение…";private int targetFps=30;
     private LinearLayout zoomRow;private boolean active,audio,light,fill=true,landscape;private String status="Не подключено",mode="АВТО · 30",info="",lens="Основная";
     private float minZoom=1,maxZoom=1,currentZoom=1;private boolean flash;
     CameraOverlay(Context c,Actions a){super(c);actions=a;setClipChildren(false);build();}
@@ -27,6 +28,7 @@ final class CameraOverlay extends FrameLayout {
         LinearLayout quick=new LinearLayout(getContext());quick.setGravity(Gravity.CENTER_VERTICAL);torch=pill(light?"⚡ Вкл":"⚡",v->actions.torch());torch.setVisibility(flash?VISIBLE:GONE);quick.addView(torch,new LinearLayout.LayoutParams(dp(56),dp(36)));
         mic=pill(audio?"● Микр. вкл":"Микр. выкл",v->actions.mic());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(dp(110),dp(36));mp.leftMargin=flash?dp(8):0;quick.addView(mic,mp);Space space=new Space(getContext());quick.addView(space,new LinearLayout.LayoutParams(0,1,1));
         fit=pill(fill?"Заполнить":"Вписать",v->actions.fit());quick.addView(fit,new LinearLayout.LayoutParams(dp(100),dp(36)));top.addView(quick);
+        LinearLayout cameraControls=new LinearLayout(getContext());cameraControls.setGravity(Gravity.CENTER_VERTICAL);fpsButton=pill(targetFps+" FPS",v->actions.fps());cameraControls.addView(fpsButton,new LinearLayout.LayoutParams(dp(86),dp(36)));stabilization=pill(stabilizationText,v->actions.stabilization());LinearLayout.LayoutParams stabilizationLp=new LinearLayout.LayoutParams(0,dp(36),1);stabilizationLp.leftMargin=dp(8);cameraControls.addView(stabilization,stabilizationLp);LinearLayout.LayoutParams controlsLp=new LinearLayout.LayoutParams(-1,dp(36));controlsLp.topMargin=dp(7);top.addView(cameraControls,controlsLp);
         detail=label(info,11,0xffd2d8dd);detail.setMaxLines(2);LinearLayout.LayoutParams detailLp=new LinearLayout.LayoutParams(-1,dp(36));detailLp.topMargin=dp(7);top.addView(detail,detailLp);
         FrameLayout.LayoutParams topLp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);if(landscape)topLp.rightMargin=dp(120);addView(top,topLp);
         centerHint=label("Камера для OBS\n\nНажмите круглую кнопку,\nчтобы начать передачу",20,0xffe0e5e9);centerHint.setGravity(Gravity.CENTER);centerHint.setVisibility(active?GONE:VISIBLE);FrameLayout.LayoutParams hint=new FrameLayout.LayoutParams(-1,dp(180),Gravity.CENTER);hint.bottomMargin=landscape?0:dp(100);if(landscape)hint.rightMargin=dp(120);addView(centerHint,hint);
@@ -44,6 +46,8 @@ final class CameraOverlay extends FrameLayout {
     void status(String text){status=text;if(state!=null)state.setText("●  "+text);}
     void detail(String text){info=text;if(detail!=null)detail.setText(text);}
     void mode(String text){mode=text;if(quality!=null)quality.setText(text);}
+    void fps(int value){targetFps=value;if(fpsButton!=null)fpsButton.setText(value+" FPS");}
+    void stabilization(String text){stabilizationText=text;if(stabilization!=null)stabilization.setText(text);}
     void active(boolean value){active=value;if(shutter!=null){shutter.active=value;shutter.setContentDescription(value?"Остановить передачу в OBS":"Начать передачу в OBS");shutter.invalidate();}if(centerHint!=null)centerHint.setVisibility(value?GONE:VISIBLE);}
     void microphone(boolean value){audio=value;refreshColors();}
     void torch(boolean value){light=value;if(torch!=null)torch.setText(value?"⚡ Вкл":"⚡");}

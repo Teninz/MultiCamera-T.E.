@@ -67,7 +67,7 @@ final class EncoderCapture implements AutoCloseable {
                     int color=buffered?MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible:MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
                     if(!has(caps.colorFormats,color))continue;
                     MediaCodecInfo.VideoCapabilities video=caps.getVideoCapabilities();int w=size.getWidth(),h=size.getHeight();
-                    int rate=0;for(int test:new int[]{buffered?15:targetFps,30,24,15})if(test<=targetFps&&(!buffered||test<=15)&&video.areSizeAndRateSupported(w,h,test)){rate=test;break;}
+                    int rate=0;for(int test:new int[]{buffered?15:targetFps,30,24,15})if(test<=targetFps&&(!buffered||test<=15)&&CameraModes.supportsFps(camera,test)&&(buffered||CameraModes.sizeSupportsFps(map,size,test))&&video.areSizeAndRateSupported(w,h,test)){rate=test;break;}
                     if(rate==0)continue;
                     String key=info.getName()+"@"+w+"x"+h+"/"+rate+(buffered?"/buffer":"/surface");
                     if(rejected.contains(key))continue;
