@@ -10,7 +10,7 @@
 #define MC_WIDTH 1280
 #define MC_HEIGHT 720
 #define MC_BYTES (MC_WIDTH*MC_HEIGHT*3/2)
-#define MC_VERSION "0.4.2"
+#define MC_VERSION "0.4.3"
 #define MC_TITLE L"MultiCamera T.E."
 struct mc_frame {uint32_t magic,width,height,bytes;uint64_t sequence,timestamp_us;};
 struct mc_audio {uint64_t sequence,timestamp_us;uint32_t rate,frames,bytes;uint8_t pcm[19200];};

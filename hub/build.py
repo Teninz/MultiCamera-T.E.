@@ -19,7 +19,7 @@ def main():
  for filename in ['Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll']:shutil.copyfile(managed/filename,out/filename)
  shutil.copyfile(native/'WebView2Loader.dll',out/'WebView2Loader.dll');shutil.copyfile(sdk/'LICENSE.txt',out/'WebView2-LICENSE.txt')
  csc=Path(os.environ.get('WINDIR','C:/Windows'))/'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
- run([csc,'/nologo','/target:winexe','/platform:x64','/optimize+','/win32manifest:'+str(ROOT/'src/setup.manifest'),'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll','/reference:'+str(out/'Microsoft.Web.WebView2.Core.dll'),'/reference:'+str(out/'Microsoft.Web.WebView2.WinForms.dll'),'/out:'+str(out/'MultiCameraTE.exe'),ROOT/'src/Desktop.cs'])
+ run([csc,'/nologo','/target:winexe','/platform:x64','/optimize+','/win32manifest:'+str(ROOT/'src/setup.manifest'),'/win32icon:'+str(ROOT/'assets/multicamera.ico'),'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll','/reference:'+str(out/'Microsoft.Web.WebView2.Core.dll'),'/reference:'+str(out/'Microsoft.Web.WebView2.WinForms.dll'),'/out:'+str(out/'MultiCameraTE.exe'),ROOT/'src/Desktop.cs'])
  ui=out/'ui';ui.mkdir(exist_ok=True);(ui/'assets').mkdir(exist_ok=True)
  strings=dict(locale['strings']);strings.update(json.loads((ROOT/'ui/strings.json').read_text(encoding='utf-8')))
  for key,values in strings.items():
@@ -43,6 +43,6 @@ def main():
   payload.append('static const struct suite_file suite_files[]={')
   for i,item in enumerate(inventory):payload.append('{'+str(item['group'])+',L'+json.dumps(item['name'].replace('/','\\'))+',file_'+str(i)+',sizeof(file_'+str(i)+'),{'+','.join(str(v) for v in bytes.fromhex(item['sha256']))+'}},')
   payload.append('};\n#define SUITE_COUNT (sizeof(suite_files)/sizeof(suite_files[0]))');(work/'suite-payload.h').write_text('\n'.join(payload),encoding='utf-8');(work/'suite-inventory.json').write_text(json.dumps(inventory,indent=2))
-  manifest=str(ROOT/'src/setup.manifest').replace('\\','/');(work/'suite.rc').write_text('1 24 "'+manifest+'"\n',encoding='utf-8');run([a.zig,'rc','/fo'+str(work/'suite.res'),work/'suite.rc'])
-  setup=ROOT.parent/'MultiCameraTE-Setup.exe';run([*common,'-municode','-Wl,--subsystem,windows',ROOT/'src/setup.c',ROOT/'src/virtual-manager.c',ROOT/'src/usb.c',work/'suite.res','-lmfplat','-lmfuuid','-lole32','-loleaut32','-luuid','-ladvapi32','-lbcrypt','-lws2_32','-liphlpapi','-lshell32','-luser32','-o',setup]);shutil.copyfile(setup,ROOT.parent/'OBS-LAN-Camera-Setup.exe');print(setup)
+  manifest=str(ROOT/'src/setup.manifest').replace('\\','/');(work/'suite.rc').write_text('1 24 "'+manifest+'"\n1 ICON '+json.dumps(str(ROOT/'assets/multicamera.ico').replace('\\','/'))+'\n'+''.join(str(i)+' RCDATA '+json.dumps(str(path).replace('\\','/'))+'\n' for i,path in [(201,ROOT/'ui/assets/background-light.png'),(202,ROOT/'assets/setup-app.png'),(203,ROOT/'assets/setup-obs.png')]),encoding='utf-8');run([a.zig,'rc','/fo'+str(work/'suite.res'),work/'suite.rc'])
+  setup=ROOT.parent/'MultiCameraTE-Setup.exe';run([*common,'-municode','-Wl,--subsystem,windows',ROOT/'src/setup.c',ROOT/'src/virtual-manager.c',ROOT/'src/usb.c',work/'suite.res','-lmfplat','-lmfuuid','-lole32','-loleaut32','-luuid','-ladvapi32','-lbcrypt','-lws2_32','-liphlpapi','-lshell32','-luser32','-lcomctl32','-lgdi32','-lgdiplus','-lshlwapi','-o',setup]);shutil.copyfile(setup,ROOT.parent/'OBS-LAN-Camera-Setup.exe');print(setup)
 if __name__=='__main__':main()

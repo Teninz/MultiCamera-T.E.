@@ -22,7 +22,8 @@ def main():
   run([javac,'-encoding','UTF-8','--release','8','-classpath',str(android)+os.pathsep+str(a.zxing),'-d',classes,*sorted((ROOT/'android/src').rglob('*.java'))])
   run([jar,'cf',work/'classes.jar','-C',classes,'.'])
   run([java,'-cp',bt/'lib/d8.jar','com.android.tools.r8.D8','--release','--lib',android,'--min-api','26','--output',dex,work/'classes.jar',a.zxing])
-  run([bt/'aapt2.exe','link','-I',android,'--manifest',ROOT/'android/AndroidManifest.xml','-o',work/'unsigned.apk'])
+  run([bt/'aapt2.exe','compile','--dir',ROOT/'android/res','-o',work/'resources.zip'])
+  run([bt/'aapt2.exe','link','-I',android,'--manifest',ROOT/'android/AndroidManifest.xml',work/'resources.zip','-o',work/'unsigned.apk'])
   with zipfile.ZipFile(work/'unsigned.apk','a',zipfile.ZIP_DEFLATED) as z:
    for f in dex.glob('*.dex'):z.write(f,f.name)
   run([bt/'zipalign.exe','-f','4',work/'unsigned.apk',work/'aligned.apk'])

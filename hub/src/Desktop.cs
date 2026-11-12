@@ -32,7 +32,7 @@ internal static class Native {
 internal sealed class Desktop : Form {
  const string Origin="https://multicamera.internal";
  const string Page=Origin+"/index.html";
- const string Release="https://github.com/Teninz/obs-lan-camera/releases/download/v0.4.2/OBS-LAN-Camera-Android.apk";
+ const string Release="https://github.com/Teninz/obs-lan-camera/releases/download/v0.4.3/OBS-LAN-Camera-Android.apk";
  readonly JavaScriptSerializer json=new JavaScriptSerializer();
  readonly WebView2 web=new WebView2();
  readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
@@ -41,7 +41,7 @@ internal sealed class Desktop : Form {
  bool ready,started,closing;int ticks;
  string lastState="";
  internal Desktop(){
-  Text="MultiCamera T.E.";ClientSize=new Size(1280,840);MinimumSize=new Size(860,640);StartPosition=FormStartPosition.CenterScreen;
+  Text="MultiCamera T.E.";Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);ClientSize=new Size(1280,840);MinimumSize=new Size(860,640);StartPosition=FormStartPosition.CenterScreen;
   BackColor=Color.FromArgb(16,18,23);Font=new Font("Segoe UI",10);web.Dock=DockStyle.Fill;web.DefaultBackgroundColor=BackColor;Controls.Add(web);
   timer.Interval=100;timer.Tick+=Tick;Shown+=Initialize;FormClosing+=Shutdown;
  }
@@ -66,7 +66,7 @@ internal sealed class Desktop : Form {
   try {
    var data=json.Deserialize<Dictionary<string,object>>(args.WebMessageAsJson);string action=Convert.ToString(data["action"]);
    switch(action){
-    case "ready":ready=true;Send(new{type="init",language=Native.mc_value(2,0),animation=Native.mc_value(3,0)!=0,version="0.4.2"});State();break;
+    case "ready":ready=true;Send(new{type="init",language=Native.mc_value(2,0),animation=Native.mc_value(3,0)!=0,version="0.4.3"});State();break;
     case "theme":Theme(Convert.ToString(data["value"])=="light");break;
     case "preferences":if(Native.mc_preferences(Convert.ToInt32(data["language"]),Convert.ToBoolean(data["animation"])?1:0)==0)Send(new{type="error",key="save_error"});break;
     case "settings":Send(new{type="settings",server=TextValue(1,0),key=TextValue(2,0),enabled=Native.mc_value(4,0)!=0,animation=Native.mc_value(3,0)!=0});break;

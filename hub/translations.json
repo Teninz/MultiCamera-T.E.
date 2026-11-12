@@ -349,6 +349,139 @@
       "USBアクセスを設定できませんでした。USBテザリングを有効にしたまま、管理者権限でMultiCamera T.E.のセットアップを実行してください。",
       "No se pudo configurar el acceso USB. Mantén activa la conexión compartida USB y ejecuta el instalador de MultiCamera T.E. como administrador.",
       "无法配置 USB 访问，请保持 USB 网络共享开启，并以管理员身份运行 MultiCamera T.E. 安装程序。"
+    ],
+    "component_title": [
+      "Choose what to install",
+      "Выберите, что установить",
+      "インストールする構成を選択",
+      "Elige qué instalar",
+      "选择安装组件"
+    ],
+    "component_app": [
+      "MultiCamera T.E. app — five Windows cameras",
+      "Приложение MultiCamera T.E. — пять камер Windows",
+      "MultiCamera T.E.アプリ — Windowsカメラ5台",
+      "Aplicación MultiCamera T.E. — cinco cámaras Windows",
+      "MultiCamera T.E. 应用 — 五个 Windows 摄像头"
+    ],
+    "component_obs": [
+      "OBS Studio plugin",
+      "Плагин OBS Studio",
+      "OBS Studioプラグイン",
+      "Complemento OBS Studio",
+      "OBS Studio 插件"
+    ],
+    "component_both": [
+      "App and OBS Studio plugin",
+      "Приложение и плагин OBS Studio",
+      "アプリとOBS Studioプラグイン",
+      "Aplicación y complemento OBS Studio",
+      "应用和 OBS Studio 插件"
+    ],
+    "component_hint": [
+      "The app receives up to five phones for calling apps and OBS.\nThe plugin can receive a phone directly in OBS; five independent hub cameras also require the app.\n\nOnly selected components are updated. Local network access: app TCP 34872; OBS plugin TCP 34871, limited to the local subnet.",
+      "Приложение принимает до пяти смартфонов для приложений звонков и OBS.\nПлагин принимает смартфон напрямую в OBS; для пяти независимых камер через общий приёмник нужно также приложение.\n\nОбновляются только выбранные компоненты. Доступ в локальной сети: приложение — TCP 34872, плагин OBS — TCP 34871, только из локальной подсети.",
+      "アプリは最大5台のスマートフォンを通話アプリやOBSに接続します。\nプラグインはOBSに直接接続できます。5台の独立したハブカメラにはアプリも必要です。\n\n選択した構成のみ更新します。ローカルサブネット内のみ：アプリTCP 34872、OBSプラグインTCP 34871。",
+      "La app recibe hasta cinco teléfonos para llamadas y OBS.\nEl complemento conecta un teléfono directamente a OBS; cinco cámaras independientes del receptor requieren también la app.\n\nSolo se actualizan los componentes elegidos. Acceso de la subred local: app TCP 34872; complemento OBS TCP 34871.",
+      "应用接收最多五部手机，供通话应用和 OBS 使用。\n插件可直接接收手机画面；使用接收端的五个独立摄像头还需安装应用。\n\n仅更新所选组件。仅限本地子网访问：应用 TCP 34872，OBS 插件 TCP 34871。"
+    ],
+    "install_button": [
+      "Install selected",
+      "Установить выбранное",
+      "選択した構成をインストール",
+      "Instalar selección",
+      "安装所选组件"
+    ],
+    "close_app_only": [
+      "Close MultiCamera T.E., then retry. OBS may remain open.",
+      "Закройте MultiCamera T.E. и повторите. OBS можно оставить открытым.",
+      "MultiCamera T.E.を終了して再試行してください。OBSは開いたままで構いません。",
+      "Cierra MultiCamera T.E. y reintenta. OBS puede seguir abierto.",
+      "请关闭 MultiCamera T.E. 后重试，OBS 可保持打开。"
+    ],
+    "close_obs_only": [
+      "Close OBS Studio, then retry. MultiCamera T.E. may remain open.",
+      "Закройте OBS Studio и повторите. MultiCamera T.E. можно оставить открытым.",
+      "OBS Studioを終了して再試行してください。MultiCamera T.E.は開いたままで構いません。",
+      "Cierra OBS Studio y reintenta. MultiCamera T.E. puede seguir abierto.",
+      "请关闭 OBS Studio 后重试，MultiCamera T.E. 可保持打开。"
+    ],
+    "obs_complete": [
+      "OBS plugin installed. Start OBS Studio.",
+      "Плагин OBS установлен. Запустите OBS Studio.",
+      "OBSプラグインをインストールしました。OBS Studioを起動してください。",
+      "Complemento OBS instalado. Inicia OBS Studio.",
+      "OBS 插件已安装，请启动 OBS Studio。"
+    ],
+    "obs_not_found": [
+      "Plugin files are installed for standard OBS Studio. OBS was not found in Program Files; install OBS or allow TCP 34871 for your actual OBS executable on the local subnet. Portable OBS requires manual plugin installation.",
+      "Файлы плагина установлены для обычного OBS Studio. OBS не найден в Program Files: установите OBS или разрешите TCP 34871 для фактического obs64.exe в локальной подсети. Для переносного OBS нужна ручная установка плагина.",
+      "通常版OBS用のプラグインを配置しました。Program FilesにOBSがありません。OBSをインストールするか、実際のOBS実行ファイルにローカルTCP 34871を許可してください。ポータブル版は手動配置が必要です。",
+      "Archivos instalados para OBS estándar. No se encontró OBS en Program Files; instala OBS o permite TCP 34871 para su ejecutable real en la subred local. OBS portátil requiere instalación manual.",
+      "已为标准版 OBS 安装插件，但在 Program Files 中未找到 OBS。请安装 OBS，或仅在本地子网中为实际 OBS 程序允许 TCP 34871。便携版需手动安装插件。"
+    ],
+    "obs_firewall_warning": [
+      "Plugin installed, but its local firewall rule failed. Allow TCP 34871 for obs64.exe only from the local subnet.",
+      "Плагин установлен, но правило брандмауэра не создано. Разрешите TCP 34871 для obs64.exe только из локальной подсети.",
+      "プラグインはインストール済みですがファイアウォール規則を作成できませんでした。obs64.exeのTCP 34871をローカルサブネット内に限り許可してください。",
+      "Complemento instalado, pero falló la regla del cortafuegos. Permite TCP 34871 para obs64.exe solo desde la subred local.",
+      "插件已安装，但无法创建防火墙规则。请仅允许本地子网访问 obs64.exe 的 TCP 34871。"
+    ],
+    "component_subtitle": [
+      "Select one or both components.",
+      "Выберите один или оба компонента.",
+      "一方、または両方を選択してください。",
+      "Selecciona uno o ambos componentes.",
+      "可选择一个或两个组件。"
+    ],
+    "component_selected": [
+      " — selected",
+      " — выбрано",
+      " — 選択済み",
+      " — seleccionado",
+      " — 已选择"
+    ],
+    "card_app_title": [
+      "MultiCamera T.E. app",
+      "Приложение MultiCamera T.E.",
+      "MultiCamera T.E.アプリ",
+      "Aplicación MultiCamera T.E.",
+      "MultiCamera T.E. 应用"
+    ],
+    "card_obs_title": [
+      "OBS Studio plugin",
+      "Плагин OBS Studio",
+      "OBS Studioプラグイン",
+      "Complemento OBS Studio",
+      "OBS Studio 插件"
+    ],
+    "card_app_desc": [
+      "Up to five phones as separate Windows cameras. For calling apps and OBS.",
+      "До пяти смартфонов как отдельные камеры Windows. Для приложений звонков и OBS.",
+      "最大5台のスマートフォンを個別のWindowsカメラに。通話アプリやOBSで使用。",
+      "Hasta cinco teléfonos como cámaras Windows independientes. Para llamadas y OBS.",
+      "将最多五部手机变成独立的 Windows 摄像头，用于通话应用和 OBS。"
+    ],
+    "card_obs_desc": [
+      "Connect a phone directly to OBS. Add its video to your scenes.",
+      "Подключение смартфона напрямую в OBS. Видео с камеры в ваших сценах.",
+      "スマートフォンをOBSに直接接続。カメラ映像をシーンに追加。",
+      "Conecta un teléfono directamente a OBS. Añade su vídeo a tus escenas.",
+      "将手机直接连接到 OBS，并把摄像头画面添加到场景。"
+    ],
+    "component_dependency": [
+      "Five hub cameras in OBS need both components.",
+      "Для пяти камер через общий приёмник в OBS выберите оба компонента.",
+      "OBSで5台のハブカメラを使用する場合は両方を選択。",
+      "Para cinco cámaras del receptor en OBS, selecciona ambos componentes.",
+      "在 OBS 中使用接收端的五个摄像头，请选择两个组件。"
+    ],
+    "component_network": [
+      "Local subnet only · App TCP 34872 · OBS TCP 34871",
+      "Только локальная подсеть · Приложение: TCP 34872 · OBS: TCP 34871",
+      "ローカルサブネットのみ · アプリ TCP 34872 · OBS TCP 34871",
+      "Solo subred local · App TCP 34872 · OBS TCP 34871",
+      "仅限本地子网 · 应用 TCP 34872 · OBS TCP 34871"
     ]
   }
 }

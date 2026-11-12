@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ru.codex.obslancamera" android:versionCode="7" android:versionName="0.4.2">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ru.codex.obslancamera" android:versionCode="8" android:versionName="0.4.3">
  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
  <uses-permission android:name="android.permission.CAMERA"/>
  <uses-permission android:name="android.permission.INTERNET"/>
@@ -10,7 +10,7 @@
  <uses-permission android:name="android.permission.WAKE_LOCK"/>
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
  <uses-feature android:name="android.hardware.camera.any" android:required="true"/>
- <application android:label="MultiCamera T.E." android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="true" android:supportsRtl="true">
+ <application android:label="MultiCamera T.E." android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="true" android:supportsRtl="true">
   <service android:name=".ScreenOffService" android:exported="false" android:foregroundServiceType="camera|microphone"/>
   <provider android:name=".UpdateProvider" android:authorities="ru.codex.obslancamera.updates" android:exported="false" android:grantUriPermissions="true"/>
   <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:screenOrientation="fullSensor" android:windowSoftInputMode="stateAlwaysHidden|adjustResize">
