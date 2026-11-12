@@ -1,0 +1,354 @@
+{
+  "languages": [
+    "en",
+    "ru",
+    "ja",
+    "es",
+    "zh"
+  ],
+  "strings": {
+    "subtitle": [
+      "Five phones. Your cameras, everywhere.",
+      "Пять смартфонов. Ваши камеры в любых приложениях.",
+      "5台のスマートフォンを、さまざまなアプリのカメラに。",
+      "Cinco teléfonos. Tus cámaras en cualquier aplicación.",
+      "五部手机，让摄像头用于各种应用。"
+    ],
+    "phone": [
+      "Smartphone",
+      "Смартфон",
+      "スマートフォン",
+      "Teléfono",
+      "手机"
+    ],
+    "connected": [
+      "Connected",
+      "Подключён",
+      "接続済み",
+      "Conectado",
+      "已连接"
+    ],
+    "waiting": [
+      "Waiting for a phone",
+      "Ожидание смартфона",
+      "スマートフォンを待機中",
+      "Esperando un teléfono",
+      "等待手机连接"
+    ],
+    "pair": [
+      "Connect phone",
+      "Подключить смартфон",
+      "スマートフォンを接続",
+      "Conectar teléfono",
+      "连接手机"
+    ],
+    "settings": [
+      "Settings",
+      "Настройки",
+      "設定",
+      "Ajustes",
+      "设置"
+    ],
+    "language": [
+      "Language",
+      "Язык",
+      "言語",
+      "Idioma",
+      "语言"
+    ],
+    "lan": [
+      "Local network",
+      "Локальная сеть",
+      "ローカルネットワーク",
+      "Red local",
+      "局域网"
+    ],
+    "internet": [
+      "Internet / own server",
+      "Интернет / свой сервер",
+      "インターネット・独自サーバー",
+      "Internet / servidor propio",
+      "互联网／自建服务器"
+    ],
+    "server": [
+      "Server address (wss://)",
+      "Адрес сервера (wss://)",
+      "サーバーアドレス (wss://)",
+      "Dirección del servidor (wss://)",
+      "服务器地址 (wss://)"
+    ],
+    "host_key": [
+      "Server host key (if required)",
+      "Ключ доступа к серверу (если нужен)",
+      "サーバーのホストキー（必要な場合）",
+      "Clave del servidor (si se requiere)",
+      "服务器主机密钥（如需要）"
+    ],
+    "enable_internet": [
+      "Enable Internet connections",
+      "Включить подключение через интернет",
+      "インターネット接続を有効にする",
+      "Activar conexiones por Internet",
+      "启用互联网连接"
+    ],
+    "save": [
+      "Save",
+      "Сохранить",
+      "保存",
+      "Guardar",
+      "保存"
+    ],
+    "cancel": [
+      "Cancel",
+      "Отмена",
+      "キャンセル",
+      "Cancelar",
+      "取消"
+    ],
+    "close": [
+      "Close",
+      "Закрыть",
+      "閉じる",
+      "Cerrar",
+      "关闭"
+    ],
+    "done": [
+      "Done",
+      "Готово",
+      "完了",
+      "Listo",
+      "完成"
+    ],
+    "apk_title": [
+      "1. Install the Android app",
+      "1. Установите приложение Android",
+      "1. Androidアプリをインストール",
+      "1. Instala la aplicación Android",
+      "1. 安装 Android 应用"
+    ],
+    "pair_title": [
+      "2. Scan in MultiCamera T.E.",
+      "2. Сканируйте в MultiCamera T.E.",
+      "2. MultiCamera T.E.でスキャン",
+      "2. Escanea en MultiCamera T.E.",
+      "2. 在 MultiCamera T.E. 中扫码"
+    ],
+    "apk_hint": [
+      "Scan with your phone camera to download the APK from GitHub.",
+      "Сканируйте обычной камерой телефона, чтобы скачать APK с GitHub.",
+      "スマートフォンのカメラでスキャンし、GitHubからAPKを入手します。",
+      "Escanea con la cámara del teléfono para descargar el APK de GitHub.",
+      "使用手机相机扫码，从 GitHub 下载 APK。"
+    ],
+    "pair_hint": [
+      "In the app: QR → scan this code → press Start.",
+      "В приложении: QR → этот код → кнопка запуска.",
+      "アプリ内で「QR」→このコード→開始ボタン。",
+      "En la app: QR → este código → botón de inicio.",
+      "在应用中：QR → 扫描此码 → 点击开始。"
+    ],
+    "copy": [
+      "Copy connection",
+      "Копировать подключение",
+      "接続情報をコピー",
+      "Copiar conexión",
+      "复制连接信息"
+    ],
+    "camera_ready": [
+      "Windows cameras are ready",
+      "Камеры Windows готовы",
+      "Windowsカメラの準備完了",
+      "Las cámaras de Windows están listas",
+      "Windows 摄像头已就绪"
+    ],
+    "camera_starting": [
+      "Starting Windows cameras…",
+      "Запуск камер Windows…",
+      "Windowsカメラを起動中…",
+      "Iniciando cámaras de Windows…",
+      "正在启动 Windows 摄像头…"
+    ],
+    "camera_install": [
+      "Install Windows cameras",
+      "Установить камеры Windows",
+      "Windowsカメラをインストール",
+      "Instalar cámaras de Windows",
+      "安装 Windows 摄像头"
+    ],
+    "camera_error": [
+      "Windows cameras require setup",
+      "Нужна установка камер Windows",
+      "Windowsカメラの設定が必要です",
+      "Es necesario configurar las cámaras de Windows",
+      "需要安装 Windows 摄像头组件"
+    ],
+    "consumer_hint": [
+      "Select MultiCamera T.E. 1–5 in your calling app. Add independent sources in OBS.",
+      "Выберите MultiCamera T.E. 1–5 в приложении для звонков. В OBS добавляйте независимые источники.",
+      "通話アプリでMultiCamera T.E. 1〜5を選択。OBSでは個別のソースを追加します。",
+      "Elige MultiCamera T.E. 1–5 en tu app de llamadas. Añade fuentes independientes en OBS.",
+      "在通话应用中选择 MultiCamera T.E. 1–5。在 OBS 中添加独立来源。"
+    ],
+    "same_network": [
+      "PC and phones must use the same router for local connections.",
+      "Для локального подключения ПК и телефоны должны быть в сети одного роутера.",
+      "ローカル接続ではPCとスマートフォンを同じルーターに接続してください。",
+      "Para conexiones locales, el PC y los teléfonos deben usar el mismo router.",
+      "局域网连接时，电脑与手机须连接同一路由器。"
+    ],
+    "relay_missing": [
+      "Enter your relay server address in Settings first.",
+      "Сначала укажите адрес своего сервера в настройках.",
+      "先に設定で独自の中継サーバーアドレスを入力してください。",
+      "Primero introduce la dirección de tu servidor en Ajustes.",
+      "请先在设置中输入自建中继服务器地址。"
+    ],
+    "relay_off": [
+      "Internet mode is off",
+      "Интернет-режим выключен",
+      "インターネットモードはオフです",
+      "El modo Internet está desactivado",
+      "互联网模式已关闭"
+    ],
+    "relay_ready": [
+      "Internet relay connected",
+      "Сервер интернета подключён",
+      "中継サーバーに接続済み",
+      "Servidor de Internet conectado",
+      "已连接互联网中继服务器"
+    ],
+    "relay_connecting": [
+      "Connecting to relay server…",
+      "Подключение к серверу…",
+      "中継サーバーに接続中…",
+      "Conectando al servidor…",
+      "正在连接中继服务器…"
+    ],
+    "server_invalid": [
+      "Use a valid wss:// address. HTTPS certificate validation is required.",
+      "Укажите корректный адрес wss://. Сертификат HTTPS должен быть доверенным.",
+      "有効なwss://アドレスを入力してください。信頼されたHTTPS証明書が必要です。",
+      "Usa una dirección wss:// válida. Se requiere un certificado HTTPS de confianza.",
+      "请输入有效的 wss:// 地址，且必须使用受信任的 HTTPS 证书。"
+    ],
+    "install_question": [
+      "Install MultiCamera T.E., five Windows cameras and the OBS plugin if OBS is available?\nLAN access: TCP 34872, only from your local subnet.",
+      "Установить MultiCamera T.E., пять камер Windows и плагин OBS, если OBS найден?\nДоступ по сети: TCP 34872, только из локальной подсети.",
+      "MultiCamera T.E.、5台のWindowsカメラ、およびOBSがある場合はプラグインをインストールしますか？\nLANアクセス：ローカルサブネットからのTCP 34872のみ。",
+      "¿Instalar MultiCamera T.E., cinco cámaras de Windows y el plugin de OBS si está disponible?\nAcceso LAN: TCP 34872, solo desde la subred local.",
+      "安装 MultiCamera T.E.、五个 Windows 摄像头，以及 OBS 插件（如已安装 OBS）？\n局域网访问：TCP 34872，仅允许本地子网。"
+    ],
+    "install_complete": [
+      "Installation complete. Start MultiCamera T.E.?",
+      "Установка завершена. Запустить MultiCamera T.E.?",
+      "インストール完了。MultiCamera T.E.を起動しますか？",
+      "Instalación completada. ¿Iniciar MultiCamera T.E.?",
+      "安装完成。是否启动 MultiCamera T.E.？"
+    ],
+    "install_error": [
+      "Installation failed. Existing settings were preserved.",
+      "Установка не завершена. Существующие настройки сохранены.",
+      "インストールに失敗しました。既存の設定は保持されています。",
+      "La instalación falló. Se conservaron los ajustes existentes.",
+      "安装失败，现有设置已保留。"
+    ],
+    "close_apps": [
+      "Close MultiCamera T.E. and OBS, then retry.",
+      "Закройте MultiCamera T.E. и OBS, затем повторите.",
+      "MultiCamera T.E.とOBSを終了してから再試行してください。",
+      "Cierra MultiCamera T.E. y OBS y vuelve a intentarlo.",
+      "请关闭 MultiCamera T.E. 和 OBS 后重试。"
+    ],
+    "setup_note": [
+      "Windows 11 · encrypted LAN/Internet streams · microphone optional",
+      "Windows 11 · шифрование в локальной сети и интернете · микрофон по желанию",
+      "Windows 11・LAN/インターネット暗号化通信・マイクは任意",
+      "Windows 11 · transmisión cifrada por LAN/Internet · micrófono opcional",
+      "Windows 11 · 局域网／互联网加密传输 · 可选麦克风"
+    ],
+    "config_error": [
+      "Cannot read protected MultiCamera T.E. settings.",
+      "Не удалось прочитать защищённые настройки MultiCamera T.E.",
+      "保護されたMultiCamera T.E.設定を読み込めません。",
+      "No se pudieron leer los ajustes protegidos de MultiCamera T.E.",
+      "无法读取受保护的 MultiCamera T.E. 设置。"
+    ],
+    "start_error": [
+      "Cannot start the receiver. Another instance may already be running.",
+      "Не удалось запустить приёмник. Возможно, приложение уже запущено.",
+      "受信アプリを起動できません。すでに起動している可能性があります。",
+      "No se pudo iniciar el receptor. Puede que ya esté ejecutándose.",
+      "无法启动接收端，应用可能已在运行。"
+    ],
+    "firewall_warning": [
+      "Installation completed, but the LAN firewall rule could not be created. Allow TCP 34872 for MultiCameraTE.exe on your local network before connecting phones.",
+      "Установка завершена, но правило брандмауэра для локальной сети не создано. Для подключения телефонов разрешите TCP 34872 для MultiCameraTE.exe только в своей локальной сети.",
+      "インストールは完了しましたが、LANのファイアウォール規則を作成できませんでした。スマートフォン接続前に、ローカルネットワークでMultiCameraTE.exeのTCP 34872を許可してください。",
+      "La instalación terminó, pero no se pudo crear la regla del cortafuegos para LAN. Permite TCP 34872 para MultiCameraTE.exe en tu red local antes de conectar teléfonos.",
+      "安装已完成，但无法创建局域网防火墙规则。连接手机前，请仅在本地网络中允许 MultiCameraTE.exe 使用 TCP 34872。"
+    ],
+    "animation": [
+      "Animate background lighting",
+      "Анимация света на фоне",
+      "背景ライトのアニメーション",
+      "Animar la iluminación del fondo",
+      "背景灯光动画"
+    ],
+    "usb": [
+      "USB cable",
+      "USB-кабель",
+      "USBケーブル",
+      "Cable USB",
+      "USB 线缆"
+    ],
+    "usb_refresh": [
+      "USB not found · refresh",
+      "USB не найден · обновить",
+      "USB未検出・更新",
+      "USB no encontrado · actualizar",
+      "未找到 USB · 刷新"
+    ],
+    "usb_allow": [
+      "Allow USB connection",
+      "Разрешить USB-подключение",
+      "USB接続を許可",
+      "Permitir conexión USB",
+      "允许 USB 连接"
+    ],
+    "usb_missing": [
+      "Connect a data cable and enable USB tethering in Android Settings. Then select the USB adapter.",
+      "Подключите кабель с передачей данных и включите USB-модем в настройках Android. Затем выберите USB-адаптер.",
+      "データ対応ケーブルを接続し、Android設定でUSBテザリングを有効にしてからUSBアダプターを選択してください。",
+      "Conecta un cable de datos y activa Compartir conexión por USB en Android. Después elige el adaptador USB.",
+      "连接支持数据传输的线缆，在 Android 设置中启用 USB 网络共享，然后选择 USB 适配器。"
+    ],
+    "usb_pair_hint": [
+      "1. Allow USB connections with the button below.\n2. Scan this QR in the Android app and press Start.",
+      "1. Разрешите USB-подключение кнопкой ниже.\n2. Считайте этот QR в Android-приложении и нажмите запуск.",
+      "1. 下のボタンでUSB接続を許可します。\n2. AndroidアプリでこのQRを読み取り、開始します。",
+      "1. Permite la conexión USB con el botón inferior.\n2. Escanea este QR en la app Android y pulsa Inicio.",
+      "1. 点击下方按钮允许 USB 连接。\n2. 在 Android 应用中扫描此二维码并开始。"
+    ],
+    "usb_question": [
+      "Allow MultiCamera T.E. to receive cameras from the USB subnet of the selected adapter?",
+      "Разрешить MultiCamera T.E. принимать камеры из USB-подсети выбранного адаптера?",
+      "選択したアダプターのUSBサブネットからMultiCamera T.E.へのカメラ接続を許可しますか？",
+      "¿Permitir que MultiCamera T.E. reciba cámaras desde la subred USB del adaptador seleccionado?",
+      "允许 MultiCamera T.E. 接收来自所选适配器 USB 子网的摄像头连接？"
+    ],
+    "usb_allowed": [
+      "USB connections are allowed for the selected adapter. Scan the connection QR on the phone.",
+      "USB-подключения для выбранного адаптера разрешены. Считайте QR подключения на телефоне.",
+      "選択したアダプターのUSB接続を許可しました。スマートフォンで接続QRを読み取ってください。",
+      "Se permiten conexiones USB para el adaptador elegido. Escanea el QR de conexión en el teléfono.",
+      "已允许所选适配器的 USB 连接，请在手机上扫描连接二维码。"
+    ],
+    "usb_failed": [
+      "Could not configure USB access. Keep USB tethering on and run MultiCamera T.E. Setup with administrator permission.",
+      "Не удалось настроить USB-доступ. Оставьте USB-модем включённым и запустите установщик MultiCamera T.E. с правами администратора.",
+      "USBアクセスを設定できませんでした。USBテザリングを有効にしたまま、管理者権限でMultiCamera T.E.のセットアップを実行してください。",
+      "No se pudo configurar el acceso USB. Mantén activa la conexión compartida USB y ejecuta el instalador de MultiCamera T.E. como administrador.",
+      "无法配置 USB 访问，请保持 USB 网络共享开启，并以管理员身份运行 MultiCamera T.E. 安装程序。"
+    ]
+  }
+}

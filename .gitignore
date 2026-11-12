@@ -17,3 +17,8 @@ plugin/bin/
 Set-Home-Firewall.ps1
 SHA256SUMS.txt
 github-release.jpg
+
+hub/bin/
+
+relay/.env
+relay/Caddyfile

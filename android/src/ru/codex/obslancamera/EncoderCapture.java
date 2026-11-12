@@ -38,7 +38,7 @@ final class EncoderCapture implements AutoCloseable {
 
     static EncoderCapture open(CameraCharacteristics camera,CameraModes.Mode requested,Set<String> rejected,Consumer<String> log) throws Exception {
         StreamConfigurationMap map=camera.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        if(map==null)throw new Unavailable("Камера не сообщила поддерживаемые режимы");
+        if(map==null)throw new Unavailable(Language.text("Камера не сообщила поддерживаемые режимы"));
         if(requested==null)requested=CameraModes.recommended(CameraModes.discover(camera));
         int maxW=requested.width,maxH=requested.height,targetFps=requested.fps;
         List<MediaCodecInfo> encoders=new ArrayList<>();
@@ -73,7 +73,7 @@ final class EncoderCapture implements AutoCloseable {
                     if(rejected.contains(key))continue;
                     MediaCodec codec=null;Surface input=null;ImageReader reader=null;
                     try{
-                        log.accept("Пробуем "+key);
+                        log.accept(Language.text("Пробуем ")+key);
                         codec=MediaCodec.createByCodecName(info.getName());
                         MediaFormat format=MediaFormat.createVideoFormat("video/avc",w,h);
                         format.setInteger(MediaFormat.KEY_COLOR_FORMAT,color);
@@ -85,7 +85,7 @@ final class EncoderCapture implements AutoCloseable {
                         if(!buffered)input=codec.createInputSurface();
                         codec.start();
                         if(buffered){reader=ImageReader.newInstance(w,h,ImageFormat.YUV_420_888,2);input=reader.getSurface();}
-                        log.accept("Запущен "+key);
+                        log.accept(Language.text("Запущен ")+key);
                         return new EncoderCapture(codec,input,reader,w,h,rate,info.getName(),key);
                     }catch(Exception error){
                         rejected.add(key);last=key+": "+diagnostic(error);log.accept(last);
@@ -95,7 +95,7 @@ final class EncoderCapture implements AutoCloseable {
                 }catch(Exception error){last=diagnostic(error);}
             }
         }
-        throw new Unavailable("Не удалось запустить кодировщик камеры. "+last+". Откройте «Диагностика».");
+        throw new Unavailable(Language.text("Не удалось запустить кодировщик камеры. ")+last+Language.text(". Откройте «Диагностика»."));
     }
     void receiveImages(Handler handler,AtomicReference<Exception> failure){
         if(reader==null)return;
@@ -105,7 +105,7 @@ final class EncoderCapture implements AutoCloseable {
                 source=r.acquireLatestImage();if(source==null||closed)return;
                 int index=codec.dequeueInputBuffer(0);if(index<0)return;
                 Image target=codec.getInputImage(index);
-                if(target==null)throw new IllegalStateException("Кодировщик не предоставил YUV input Image");
+                if(target==null)throw new IllegalStateException(Language.text("Кодировщик не предоставил YUV input Image"));
                 Image.Plane[] src=source.getPlanes(),dst=target.getPlanes();
                 for(int p=0;p<3;p++){
                     int w=p==0?width:width/2,h=p==0?height:height/2;
@@ -113,7 +113,7 @@ final class EncoderCapture implements AutoCloseable {
                     for(int y=0;y<h;y++)for(int x=0;x<w;x++)to.put(toBase+y*dst[p].getRowStride()+x*dst[p].getPixelStride(),from.get(fromBase+y*src[p].getRowStride()+x*src[p].getPixelStride()));
                 }
                 codec.queueInputBuffer(index,0,width*height*3/2,source.getTimestamp()/1000,0);
-            }catch(Exception error){if(!closed)failure.compareAndSet(null,new Failure(key,"Ошибка YUV-кодирования: "+diagnostic(error),error));}
+            }catch(Exception error){if(!closed)failure.compareAndSet(null,new Failure(key,Language.text("Ошибка YUV-кодирования: ")+diagnostic(error),error));}
             finally{if(source!=null)source.close();}
         },handler);
     }

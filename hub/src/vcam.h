@@ -1,0 +1,19 @@
+#pragma once
+#define MC_VCAM_COUNT 5
+static const GUID mc_camera_ids[5]={
+ {0x27da5011,0xb44e,0x4f27,{0xa9,0x28,0x72,0x58,0x4d,0x43,0x54,0x45}},
+ {0x27da5012,0xb44e,0x4f27,{0xa9,0x28,0x72,0x58,0x4d,0x43,0x54,0x45}},
+ {0x27da5013,0xb44e,0x4f27,{0xa9,0x28,0x72,0x58,0x4d,0x43,0x54,0x45}},
+ {0x27da5014,0xb44e,0x4f27,{0xa9,0x28,0x72,0x58,0x4d,0x43,0x54,0x45}},
+ {0x27da5015,0xb44e,0x4f27,{0xa9,0x28,0x72,0x58,0x4d,0x43,0x54,0x45}}
+};
+static const GUID mc_iid_stream2={0xc5bc37d6,0x75c7,0x46a1,{0xa1,0x32,0x81,0xb5,0xf7,0x23,0xc2,0x0f}};
+static const GUID mc_iid_allocator={0xda62b958,0x3a38,0x4a97,{0xbd,0x27,0x14,0x9c,0x64,0x0c,0x07,0x71}};
+static const GUID mc_stream_id={0x11bd5120,0xd124,0x446b,{0x88,0xe6,0x17,0x06,0x02,0x57,0xff,0xf9}};
+static const GUID mc_stream_category={0x2939e7b8,0xa62e,0x4579,{0xb6,0x74,0xd4,0x07,0x3d,0xfa,0xbb,0xba}};
+static const GUID mc_frame_shared={0x1cb378e9,0xb279,0x41d4,{0xaf,0x97,0x34,0xa2,0x43,0xe6,0x83,0x20}};
+/* New Windows 11 API, loaded dynamically for a clear older-OS error. */
+struct mc_virtual_camera;
+struct mc_virtual_camera_vtbl {IMFAttributesVtbl attributes;HRESULT(WINAPI *AddDeviceSourceInfo)(struct mc_virtual_camera*,LPCWSTR);HRESULT(WINAPI *AddProperty)(struct mc_virtual_camera*,const void*,ULONG,const BYTE*,ULONG);HRESULT(WINAPI *AddRegistryEntry)(struct mc_virtual_camera*,LPCWSTR,LPCWSTR,DWORD,const BYTE*,ULONG);HRESULT(WINAPI *Start)(struct mc_virtual_camera*,IMFAsyncCallback*);HRESULT(WINAPI *Stop)(struct mc_virtual_camera*);HRESULT(WINAPI *Remove)(struct mc_virtual_camera*);HRESULT(WINAPI *GetMediaSource)(struct mc_virtual_camera*,IMFMediaSource**);HRESULT(WINAPI *SendCameraProperty)(struct mc_virtual_camera*,const GUID*,ULONG,ULONG,const void*,ULONG,void*,ULONG,ULONG*);HRESULT(WINAPI *CreateSyncEvent)(struct mc_virtual_camera*,const GUID*,ULONG,ULONG,HANDLE,void**);HRESULT(WINAPI *CreateSyncSemaphore)(struct mc_virtual_camera*,const GUID*,ULONG,ULONG,HANDLE,LONG,void**);HRESULT(WINAPI *Shutdown)(struct mc_virtual_camera*);};
+struct mc_virtual_camera {const struct mc_virtual_camera_vtbl *lpVtbl;};
+typedef HRESULT(WINAPI *mc_create_virtual_fn)(int,int,int,LPCWSTR,LPCWSTR,const GUID*,ULONG,struct mc_virtual_camera**);

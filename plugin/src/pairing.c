@@ -25,6 +25,8 @@ static void cache_obs_window(void *unused)
     union{FARPROC raw;void *(*get)(void);}symbol;symbol.raw=GetProcAddress(dll,"obs_frontend_get_main_window_handle");if(symbol.get)InterlockedExchangePointer(&owner_window,symbol.get());
 }
 void olc_pairing_frontend_ready(void){obs_queue_task(OBS_TASK_UI,cache_obs_window,NULL,false);}
+void *olc_pairing_owner(void){return obs_window();}
+static const wchar_t *label(const char *key){static __declspec(thread) wchar_t buffer[8][1200];static __declspec(thread) int index;wchar_t *out=buffer[(index++)%8];MultiByteToWideChar(CP_UTF8,0,obs_module_text(key),-1,out,1200);return out;}
 bool olc_pairing_available(void) { return obs_window()!=NULL; }
 static wchar_t *wide(const char *text){int n=MultiByteToWideChar(CP_UTF8,0,text,-1,NULL,0);wchar_t *out=bzalloc(n*sizeof(wchar_t));MultiByteToWideChar(CP_UTF8,0,text,-1,out,n);return out;}
 static int px(struct dialog_data *d,int n){return (int)(n*d->scale+.5f);}
@@ -57,27 +59,27 @@ static LRESULT CALLBACK window_proc(HWND window,UINT message,WPARAM wp,LPARAM lp
         d->normal=CreateFontW(-px(d,15),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
         d->strong=CreateFontW(-px(d,17),0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
         d->title=CreateFontW(-px(d,24),0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
-        control(window,d,L"STATIC",L"Подключение камеры смартфона",0,24,18,710,32,0,d->title);
-        control(window,d,L"STATIC",L"ПК — по кабелю, телефон — по Wi-Fi того же роутера. Всё подключение в этом окне.",0,24,58,710,38,0,d->normal);
-        control(window,d,L"STATIC",L"1. Установите приложение",0,42,120,310,28,0,d->strong);
-        control(window,d,L"STATIC",L"2. Подключите к OBS",0,410,120,310,28,0,d->strong);
+        control(window,d,L"STATIC",label("PairTitle"),0,24,18,710,32,0,d->title);
+        control(window,d,L"STATIC",label("PairSubtitle"),0,24,58,710,38,0,d->normal);
+        control(window,d,L"STATIC",label("PairInstall"),0,42,120,310,28,0,d->strong);
+        control(window,d,L"STATIC",label("PairConnect"),0,410,120,310,28,0,d->strong);
         int block=px(d,4);if(block<3)block=3;d->apk=qr_bitmap(OLC_APK_URL,block);
         char uri[180];snprintf(uri,sizeof(uri),"obslan://%s:%d#%s",d->address,d->port,d->token);d->pair=qr_bitmap(uri,block);
         image(window,d,d->apk,196,164);image(window,d,d->pair,564,164);
-        control(window,d,L"STATIC",L"Обычной камерой телефона: скачайте APK с GitHub и установите его.",0,42,398,300,44,0,d->normal);
-        control(window,d,L"STATIC",L"В приложении: «QR» → этот код → круглая кнопка запуска.",0,410,398,300,44,0,d->normal);
-        d->state=control(window,d,L"STATIC",L"Ожидаем смартфон…",0,24,476,420,28,0,d->strong);
-        char address[120];snprintf(address,sizeof(address),"Адрес ПК: %s:%d",d->address,d->port);wchar_t *wa=wide(address);control(window,d,L"STATIC",wa,0,24,507,420,24,0,d->normal);bfree(wa);
-        control(window,d,L"BUTTON",L"Копировать подключение",BS_PUSHBUTTON|WS_TABSTOP,468,478,266,40,100,d->normal);
-        control(window,d,L"BUTTON",L"Релизы GitHub",BS_PUSHBUTTON|WS_TABSTOP,24,544,180,34,101,d->normal);
-        control(window,d,L"BUTTON",L"Готово",BS_DEFPUSHBUTTON|WS_TABSTOP,628,544,106,34,IDOK,d->normal);SetTimer(window,1,500,NULL);return 0;
+        control(window,d,L"STATIC",label("PairInstallHint"),0,42,398,300,44,0,d->normal);
+        control(window,d,L"STATIC",label("PairConnectHint"),0,410,398,300,44,0,d->normal);
+        d->state=control(window,d,L"STATIC",label("Waiting"),0,24,476,420,28,0,d->strong);
+        char address[120];snprintf(address,sizeof(address),"%s: %s:%d",obs_module_text("Address"),d->address,d->port);wchar_t *wa=wide(address);control(window,d,L"STATIC",wa,0,24,507,420,24,0,d->normal);bfree(wa);
+        control(window,d,L"BUTTON",label("PairCopy"),BS_PUSHBUTTON|WS_TABSTOP,468,478,266,40,100,d->normal);
+        control(window,d,L"BUTTON",label("PairReleases"),BS_PUSHBUTTON|WS_TABSTOP,24,544,180,34,101,d->normal);
+        control(window,d,L"BUTTON",label("PairDone"),BS_DEFPUSHBUTTON|WS_TABSTOP,628,544,106,34,IDOK,d->normal);SetTimer(window,1,500,NULL);return 0;
     }
     if(!d)return DefWindowProcW(window,message,wp,lp);
     switch(message){
     case WM_ERASEBKGND:{RECT rect;GetClientRect(window,&rect);FillRect((HDC)wp,&rect,d->background);return 1;}
     case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(window,&paint);HGDIOBJ old=SelectObject(dc,d->card),pen=SelectObject(dc,GetStockObject(NULL_PEN));RoundRect(dc,px(d,24),px(d,106),px(d,368),px(d,452),px(d,18),px(d,18));RoundRect(dc,px(d,392),px(d,106),px(d,736),px(d,452),px(d,18),px(d,18));SelectObject(dc,old);SelectObject(dc,pen);EndPaint(window,&paint);return 0;}
     case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;RECT rect;GetWindowRect((HWND)lp,&rect);MapWindowPoints(NULL,window,(POINT*)&rect,2);bool card=rect.top>=px(d,106)&&rect.bottom<=px(d,452);SetTextColor(dc,RGB(227,236,242));SetBkColor(dc,card?RGB(28,36,46):RGB(16,22,30));return (LRESULT)(card?d->card:d->background);}
-    case WM_TIMER:{obs_source_t *source=obs_weak_source_get_source(d->weak);if(!source){DestroyWindow(window);return 0;}bool removed=obs_source_removed(source),connected=!removed&&d->connected&&d->connected(d->context);obs_source_release(source);if(removed){DestroyWindow(window);return 0;}SetWindowTextW(d->state,connected?L"Смартфон подключён к OBS":L"Ожидаем смартфон…");return 0;}
+    case WM_TIMER:{obs_source_t *source=obs_weak_source_get_source(d->weak);if(!source){DestroyWindow(window);return 0;}bool removed=obs_source_removed(source),connected=!removed&&d->connected&&d->connected(d->context);obs_source_release(source);if(removed){DestroyWindow(window);return 0;}SetWindowTextW(d->state,connected?label("Connected"):label("Waiting"));return 0;}
     case WM_COMMAND:
         if(LOWORD(wp)==IDOK||LOWORD(wp)==IDCANCEL){DestroyWindow(window);return 0;}
         if(LOWORD(wp)==101){ShellExecuteW(window,L"open",L"https://github.com/Teninz/obs-lan-camera/releases/latest",NULL,NULL,SW_SHOWNORMAL);return 0;}
@@ -97,7 +99,7 @@ static DWORD WINAPI ui_main(void *unused)
             HWND owner=obs_window();UINT scale=owner?GetDpiForWindow(owner):96;data->scale=(scale?scale:96)/96.0f;
             RECT rect={0,0,px(data,760),px(data,598)};AdjustWindowRectEx(&rect,WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,0,WS_EX_DLGMODALFRAME);
             MONITORINFO monitor={.cbSize=sizeof(monitor)};GetMonitorInfoW(MonitorFromWindow(owner,MONITOR_DEFAULTTOPRIMARY),&monitor);int width=rect.right-rect.left,height=rect.bottom-rect.top;
-            active=CreateWindowExW(WS_EX_DLGMODALFRAME,L"OBSLANCamera.Pairing",L"OBS LAN Camera — подключение смартфона",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,(monitor.rcWork.left+monitor.rcWork.right-width)/2,(monitor.rcWork.top+monitor.rcWork.bottom-height)/2,width,height,owner,NULL,module,data);
+            active=CreateWindowExW(WS_EX_DLGMODALFRAME,L"OBSLANCamera.Pairing",label("PairWindowTitle"),WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,(monitor.rcWork.left+monitor.rcWork.right-width)/2,(monitor.rcWork.top+monitor.rcWork.bottom-height)/2,width,height,owner,NULL,module,data);
             if(active){ShowWindow(active,SW_SHOW);SetForegroundWindow(active);}else free_data(data);continue;
         }
         if(active&&IsDialogMessageW(active,&message))continue;TranslateMessage(&message);DispatchMessageW(&message);

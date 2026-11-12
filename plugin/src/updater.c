@@ -12,24 +12,20 @@
 #include <stdio.h>
 #include "release.h"
 #include "updater.h"
+#include "pairing.h"
 
 static CRITICAL_SECTION lock;
 static HANDLE worker;
 static volatile LONG stopping;
 struct request { HINTERNET session,connection,request; };
-static HWND obs_window(void)
-{
-    HMODULE dll=GetModuleHandleW(L"obs-frontend-api.dll");if(!dll)return NULL;
-    union { FARPROC raw; void *(*get)(void); } symbol;
-    symbol.raw=GetProcAddress(dll,"obs_frontend_get_main_window_handle");return symbol.get?(HWND)symbol.get():NULL;
-}
+static HWND obs_window(void){return (HWND)olc_pairing_owner();}
 static wchar_t *wide(const char *s)
 {
     int n=MultiByteToWideChar(CP_UTF8,0,s,-1,NULL,0);wchar_t *w=bzalloc((size_t)n*sizeof(wchar_t));MultiByteToWideChar(CP_UTF8,0,s,-1,w,n);return w;
 }
 static int prompt(const char *text,UINT flags)
 {
-    if(stopping)return IDNO;wchar_t *w=wide(text);int answer=MessageBoxW(obs_window(),w,L"OBS LAN Camera — обновления",flags|MB_SETFOREGROUND);bfree(w);return answer;
+    if(stopping)return IDNO;wchar_t *w=wide(text);wchar_t *title=wide(obs_module_text("UpdTitle"));int answer=MessageBoxW(obs_window(),w,title,flags|MB_SETFOREGROUND);bfree(title);bfree(w);return answer;
 }
 static void close_request(struct request *r)
 {
@@ -41,7 +37,7 @@ static bool open_request(struct request *r,const wchar_t *url)
     wchar_t host[256],path[2000];u.lpszHostName=host;u.dwHostNameLength=255;u.lpszUrlPath=path;u.dwUrlPathLength=1999;
     if(!WinHttpCrackUrl(url,0,0,&u)||u.nScheme!=INTERNET_SCHEME_HTTPS)return false;
     host[u.dwHostNameLength]=0;path[u.dwUrlPathLength]=0;
-    r->session=WinHttpOpen(L"OBS-LAN-Camera/" L"0.3.1",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);if(!r->session)return false;
+    r->session=WinHttpOpen(L"OBS-LAN-Camera/" L"0.4.1",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);if(!r->session)return false;
     WinHttpSetTimeouts(r->session,4000,4000,4000,4000);
     r->connection=WinHttpConnect(r->session,host,u.nPort,0);if(!r->connection)goto fail;
     r->request=WinHttpOpenRequest(r->connection,L"GET",path,NULL,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE);if(!r->request)goto fail;
@@ -88,11 +84,11 @@ done:
 }
 static DWORD WINAPI check_thread(void *value)
 {
-    bool automatic=(bool)(uintptr_t)value;char *json=get_metadata();if(!json){if(!automatic)prompt("Не удалось проверить обновления на GitHub. Проверьте подключение к интернету и попробуйте позже.",MB_OK|MB_ICONINFORMATION);return 0;}
+    bool automatic=(bool)(uintptr_t)value;char *json=get_metadata();if(!json){if(!automatic)prompt(obs_module_text("UpdFailed"),MB_OK|MB_ICONINFORMATION);return 0;}
     obs_data_t *release=obs_data_create_from_json(json);bfree(json);if(!release)return 0;
     const char *tag=obs_data_get_string(release,"tag_name");
     if(obs_data_get_bool(release,"draft")||obs_data_get_bool(release,"prerelease")||!olc_newer(tag,OLC_VERSION)){
-        if(!automatic)prompt("Установлена актуальная версия OBS LAN Camera " OLC_VERSION ".",MB_OK|MB_ICONINFORMATION);goto done;}
+        if(!automatic){char current[512];snprintf(current,sizeof(current),obs_module_text("UpdCurrent"),OLC_VERSION);prompt(current,MB_OK|MB_ICONINFORMATION);}goto done;}
     char url[600]={0},digest[80]={0};uint64_t bytes=0;
     obs_data_array_t *assets=obs_data_get_array(release,"assets");
     for(size_t i=0;assets && i<obs_data_array_count(assets);i++){
@@ -102,14 +98,14 @@ static DWORD WINAPI check_thread(void *value)
         obs_data_release(asset);
     }
     obs_data_array_release(assets);
-    if(!*url){if(!automatic)prompt("На GitHub есть новая версия, но проверенный установщик пока недоступен. Посмотрите страницу Releases.",MB_OK|MB_ICONINFORMATION);goto done;}
+    if(!*url){if(!automatic)prompt(obs_module_text("UpdNoInstaller"),MB_OK|MB_ICONINFORMATION);goto done;}
     const char *notes=obs_data_get_string(release,"body");char text[6500];
-    snprintf(text,sizeof(text),"Доступна OBS LAN Camera %s\nУстановлена: " OLC_VERSION "\nРазмер установщика: %.1f МБ\n\nЧто нового:\n%.4800s\n\nСкачать установщик с GitHub?\nОн будет сохранён в «Загрузки / OBS LAN Camera». Установка запускается вами отдельно.",tag,(double)bytes/1048576.0,*notes?notes:"Описание изменений отсутствует.");
+    snprintf(text,sizeof(text),obs_module_text("UpdAvailable"),tag,OLC_VERSION,(double)bytes/1048576.0,*notes?notes:obs_module_text("UpdNoNotes"));
     if(prompt(text,MB_YESNO|MB_ICONINFORMATION|MB_DEFBUTTON2)==IDYES&&!stopping){
         wchar_t path[1024];
         if(download(url,digest,bytes,path)){
-            if(!stopping){MessageBoxW(obs_window(),L"Установщик скачан, SHA-256 совпадает с GitHub.\n\nЗакройте OBS и запустите установщик из открывшейся папки.",L"OBS LAN Camera",MB_OK|MB_ICONINFORMATION);wchar_t command[1200];swprintf(command,1200,L"/select,\"%ls\"",path);ShellExecuteW(NULL,L"open",L"explorer.exe",command,NULL,SW_SHOWNORMAL);}
-        }else prompt("Не удалось скачать или проверить установщик. Файл не будет запущен. Повторите проверку позже.",MB_OK|MB_ICONWARNING);
+            if(!stopping){prompt(obs_module_text("UpdDownloaded"),MB_OK|MB_ICONINFORMATION);wchar_t command[1200];swprintf(command,1200,L"/select,\"%ls\"",path);ShellExecuteW(NULL,L"open",L"explorer.exe",command,NULL,SW_SHOWNORMAL);}
+        }else prompt(obs_module_text("UpdDownloadFailed"),MB_OK|MB_ICONWARNING);
     }
 done:obs_data_release(release);return 0;
 }

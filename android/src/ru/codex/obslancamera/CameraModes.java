@@ -11,7 +11,7 @@ final class CameraModes {
     static final class Mode {
         final int width,height,fps;
         Mode(int w,int h,int f){width=w;height=h;fps=f;}
-        String label(){return width+" × "+height+" · "+fps+" кадров/с";}
+        String label(){return width+" × "+height+" · "+fps+Language.text(" кадров/с");}
         String shortLabel(){String prefix=width==3840&&height==2160?"4K":height==1080?"FHD":height==720?"HD":width+"×"+height;return prefix+" · "+fps;}
     }
     static boolean supportsFps(CameraCharacteristics camera,int fps){

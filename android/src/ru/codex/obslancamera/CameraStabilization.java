@@ -8,5 +8,5 @@ final class CameraStabilization {
     String requested(){return state.requested();}
     String actual(){return state.actual();}
     boolean result(TotalCaptureResult result,int targetFps){return state.observe(result.get(CaptureResult.CONTROL_VIDEO_STABILIZATION_MODE),result.get(CaptureResult.LENS_OPTICAL_STABILIZATION_MODE),targetFps);}
-    static String capabilities(CameraCharacteristics caps){if(caps==null)return "Возможности камеры ещё не определены";int[] v=caps.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES),o=caps.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);return "EIS="+CameraPolicy.has(v,1)+", preview EIS="+CameraPolicy.has(v,2)+", OIS="+CameraPolicy.has(o,1);}
+    static String capabilities(CameraCharacteristics caps){if(caps==null)return Language.text("Возможности камеры ещё не определены");int[] v=caps.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES),o=caps.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);return "EIS="+CameraPolicy.has(v,1)+", preview EIS="+CameraPolicy.has(v,2)+", OIS="+CameraPolicy.has(o,1);}
 }

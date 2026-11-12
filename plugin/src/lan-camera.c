@@ -344,9 +344,10 @@ static obs_properties_t *properties(void *data)
 }
 static struct obs_source_info source_info={.id="obs_lan_camera",.type=OBS_SOURCE_TYPE_INPUT,.output_flags=OBS_SOURCE_ASYNC_VIDEO|OBS_SOURCE_AUDIO,
     .get_name=name,.create=create,.destroy=destroy,.get_defaults=defaults,.get_properties=properties,.update=update,.video_tick=video_tick};
+extern void mc_obs_register(void);
 bool obs_module_load(void)
 {
-    WSADATA data;if(WSAStartup(MAKEWORD(2,2),&data))return false;olc_updater_init();olc_pairing_init();obs_register_source(&source_info);blog(LOG_INFO,"[OBS LAN Camera] " OLC_VERSION " loaded (H.264, PCM audio, AES-256-GCM, native pairing)");return true;
+    WSADATA data;if(WSAStartup(MAKEWORD(2,2),&data))return false;olc_updater_init();olc_pairing_init();obs_register_source(&source_info);mc_obs_register();blog(LOG_INFO,"[OBS LAN Camera] " OLC_VERSION " loaded (H.264, PCM audio, AES-256-GCM, native pairing)");return true;
 }
 MODULE_EXPORT void obs_module_post_load(void) { olc_pairing_frontend_ready();olc_updater_check(true); }
 void obs_module_unload(void) { olc_pairing_shutdown();olc_updater_shutdown();WSACleanup(); }

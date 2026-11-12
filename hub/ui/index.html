@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>MultiCamera T.E.</title><link rel="stylesheet" href="style.css"><script src="translations.js" defer></script><script src="app.js" defer></script></head>
+<body>
+<svg class="symbol-library" aria-hidden="true"><defs>
+<symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="13" rx="4"/><path d="m17 10 4-2v9l-4-2"/><path d="M7 3h5"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h5l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="11.5" cy="11.5" r="3"/></symbol>
+<symbol id="i-qr" viewBox="0 0 24 24"><path d="M3 9V3h6v6ZM15 9V3h6v6ZM3 21v-6h6v6ZM15 15h3v3h3v3h-6ZM21 12v3M12 3v3M12 12h-1M12 18v3"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4M12 17h.01"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1 1M18 18l1 1M5 19l1-1M18 6l1-1"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="3"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></symbol>
+<symbol id="i-usb" viewBox="0 0 24 24"><path d="M12 21V3l-3 3M12 3l3 3M12 16l-5-4V8M12 13l5-3V7"/><circle cx="7" cy="7" r="1"/><path d="M16 4h3v3h-3Z"/><circle cx="12" cy="21" r="1"/></symbol>
+<symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 8a14 14 0 0 1 18 0M6 12a9 9 0 0 1 12 0M9 16a4 4 0 0 1 6 0M12 20h.01"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-5-5 5 5-5 5"/></symbol>
+</defs></svg>
+<div class="background" aria-hidden="true"></div><div class="ambient" aria-hidden="true"></div>
+<div class="shell">
+ <aside class="sidebar">
+  <div class="brand"><img src="assets/brand-emblem.png" alt=""><div>MultiCamera<span>T.E. / CAMERA STUDIO</span></div></div>
+  <div class="nav-caption" data-t="workspace"></div>
+  <nav><button class="nav-item active" id="navCameras"><svg><use href="#i-camera"/></svg><span data-t="cameras"></span><b>5</b></button><button class="nav-item" id="navGuide"><svg><use href="#i-help"/></svg><span data-t="guide"></span></button></nav>
+  <div class="sidebar-bottom"><div class="system-pill"><span class="status-dot" id="sideDot"></span><span id="sideStatus"></span></div><button class="nav-item" id="navSettings"><svg><use href="#i-settings"/></svg><span data-t="settings"></span></button><button class="version" id="release">MultiCamera T.E. <span id="version">0.4.1</span> ↗</button></div>
+ </aside>
+ <main>
+  <header class="topbar"><div><div class="eyebrow" data-t="workspace"></div><h1 data-t="cameras"></h1></div><div class="top-actions"><button class="button icon-label" id="theme"><svg><use href="#i-sun"/></svg><span id="themeLabel"></span></button><label class="language"><span class="sr-only" data-t="language"></span><select id="language" aria-label="Language"><option value="0">English</option><option value="1">Русский</option><option value="2">日本語</option><option value="3">Español</option><option value="4">简体中文</option></select></label></div></header>
+  <section class="workspace-bar"><div><span class="status-dot"></span><strong id="count"></strong><span class="bar-divider"></span><span data-t="up_to_five"></span></div><button class="text-button" id="guideButton"><svg><use href="#i-qr"/></svg><span data-t="add_camera"></span></button></section>
+  <section class="camera-grid" id="cameras" aria-label="Cameras"></section>
+  <footer class="footer"><span id="networkAddress"></span><span id="relayStatus"></span></footer>
+ </main>
+</div>
+<dialog id="pairDialog"><div class="dialog-heading"><div><div class="eyebrow" data-t="connection"></div><h2 id="pairHeading"></h2></div><button class="icon-button close-dialog" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
+ <div class="connection-tabs" role="tablist"><button data-mode="0" role="tab"><svg><use href="#i-wifi"/></svg><span>Wi-Fi / LAN</span></button><button data-mode="2" role="tab"><svg><use href="#i-usb"/></svg><span data-t="usb"></span></button><button data-mode="1" role="tab"><svg><use href="#i-globe"/></svg><span data-t="internet_short"></span></button></div>
+ <div class="connection-note" id="connectionNote"></div>
+ <div class="qr-grid"><section class="qr-panel"><span class="step">01</span><h3 data-t="apk_short"></h3><div class="qr-surface"><canvas id="apkQr" width="224" height="224" aria-label="Download Android APK QR code"></canvas></div><p data-t="apk_hint"></p><span class="tag">ANDROID · APK · GITHUB</span></section><section class="qr-panel"><span class="step">02</span><h3 data-t="pair_short"></h3><div class="qr-surface"><canvas id="pairQr" width="224" height="224" aria-label="Phone connection QR code"></canvas><div id="qrUnavailable" class="qr-unavailable"><svg><use href="#i-qr"/></svg><span data-t="not_ready"></span></div></div><p id="pairHint"></p><span class="tag" id="pairAddress"></span></section></div>
+ <div class="usb-controls" id="usbControls"><label><span class="sr-only" data-t="usb"></span><select id="usbAdapters"></select></label><button class="button" id="refreshUsb" data-t="refresh"></button><button class="button primary" id="allowUsb" data-t="usb_allow"></button></div>
+ <div class="dialog-footer"><button class="button" id="copyConnection"><svg><use href="#i-copy"/></svg><span data-t="copy"></span></button><button class="button primary close-dialog" data-t="done"></button></div>
+</dialog>
+<dialog id="settingsDialog" class="settings-dialog"><div class="dialog-heading"><div><div class="eyebrow">MULTICAMERA T.E.</div><h2 data-t="settings"></h2></div><button class="icon-button close-dialog" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
+ <div class="settings-content"><h3 data-t="appearance"></h3><div class="theme-options"><button class="theme-option" data-theme-choice="dark"><span class="theme-preview dark-preview"></span><span data-t="dark"></span><svg><use href="#i-check"/></svg></button><button class="theme-option" data-theme-choice="light"><span class="theme-preview light-preview"></span><span data-t="light"></span><svg><use href="#i-check"/></svg></button></div><label class="switch-row"><span data-t="animation"></span><input type="checkbox" id="animation" role="switch"></label>
+ <div class="settings-divider"></div><h3 data-t="internet"></h3><p class="muted" data-t="server_help"></p><label class="field"><span data-t="server"></span><input id="server" type="url" placeholder="wss://camera.example.com" maxlength="511" autocomplete="off" spellcheck="false"></label><label class="field"><span data-t="host_key"></span><input id="hostKey" type="password" maxlength="255" autocomplete="off"></label><label class="switch-row"><span data-t="enable_internet"></span><input type="checkbox" id="internetEnabled" role="switch"></label></div>
+ <p class="inline-error" id="settingsError" role="alert"></p><div class="dialog-footer"><button class="button close-dialog" data-t="cancel"></button><button class="button primary" id="saveSettings" data-t="save"></button></div>
+</dialog>
+<dialog id="guideDialog" class="guide-dialog"><div class="dialog-heading"><div><div class="eyebrow">MULTICAMERA T.E.</div><h2 data-t="guide"></h2></div><button class="icon-button close-dialog" aria-label="Close"><svg><use href="#i-close"/></svg></button></div><div class="guide-layout"><img class="guide-phone" src="assets/connect-phone.png" alt="Android smartphone with a USB-C cable"><div><h3 data-t="guide_title"></h3><ol><li data-t="guide_step1"></li><li data-t="guide_step2"></li><li data-t="guide_step3"></li></ol><p class="muted" data-t="consumer_hint"></p><p class="muted" data-t="usb_missing"></p></div></div><div class="dialog-footer"><button class="button" id="installCameras" data-t="camera_install"></button><button class="button primary" id="guideConnect" data-t="add_camera"></button></div></dialog>
+<div class="toast" id="toast" role="status"></div>
+</body></html>
