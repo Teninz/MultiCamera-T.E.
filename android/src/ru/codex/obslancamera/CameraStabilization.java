@@ -3,7 +3,7 @@ import android.hardware.camera2.*;
 /** Requests supported stabilization, then checks actual CaptureResult modes. */
 final class CameraStabilization {
     private final CameraPolicy.Stabilizer state;
-    CameraStabilization(CameraCharacteristics caps,int width,int height,int fps){state=new CameraPolicy.Stabilizer(CameraPolicy.stabilizationPlans(caps.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES),caps.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION),width,height,fps));}
+    CameraStabilization(CameraCharacteristics caps,int width,int height,int fps,boolean disabled,boolean buffered){state=new CameraPolicy.Stabilizer(disabled?new int[]{0}:CameraPolicy.stabilizationPlans(buffered?new int[]{0}:caps.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES),caps.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION),width,height,fps));}
     void apply(CaptureRequest.Builder request){request.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,state.videoMode());request.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,state.opticalMode());}
     String requested(){return state.requested();}
     String actual(){return state.actual();}

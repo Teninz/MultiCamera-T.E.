@@ -16,14 +16,16 @@ public class CameraPolicyProbe {
   check(!CameraPolicy.fpsInRanges(60,null));check(CameraPolicy.fpsInRanges(30,null));
   CameraPolicy.Stabilizer state=new CameraPolicy.Stabilizer(new int[]{2,1,3,0});
   check(state.videoMode()==2&&state.opticalMode()==0);
-  for(int frame=0;frame<29;frame++)check(!state.observe(0,0,30));
+  for(int frame=0;frame<89;frame++)check(!state.observe(0,0,30));
   check(state.observe(0,0,30));check(state.videoMode()==1&&state.opticalMode()==0);
   for(int frame=0;frame<100;frame++)check(!state.observe(1,0,30));check(state.actual().equals("Стаб. EIS"));
-  for(int frame=0;frame<29;frame++)check(!state.observe(0,0,30));check(state.observe(0,0,30));check(state.videoMode()==0&&state.opticalMode()==1);
+  for(int frame=0;frame<89;frame++)check(!state.observe(0,0,30));check(state.observe(0,0,30));check(state.videoMode()==0&&state.opticalMode()==1);
   check(!state.observe(0,1,30));check(state.actual().equals("Стаб. OIS"));
-  for(int frame=0;frame<59;frame++)check(!state.observe(0,0,60));check(state.observe(0,0,60));check(state.videoMode()==0&&state.opticalMode()==0);state.observe(0,0,60);check(state.actual().equals("Стаб. нет в этом режиме"));
+  for(int frame=0;frame<179;frame++)check(!state.observe(0,0,60));check(state.observe(0,0,60));check(state.videoMode()==0&&state.opticalMode()==0);state.observe(0,0,60);check(state.actual().equals("Стаб. нет в этом режиме"));
   CameraPolicy.Stabilizer unavailable=new CameraPolicy.Stabilizer(new int[]{0});unavailable.observe(null,null,30);check(unavailable.actual().equals("Стаб. недоступна"));
   CameraPolicy.Stabilizer unknown=new CameraPolicy.Stabilizer(new int[]{1,0});unknown.observe(null,null,30);check(unknown.actual().equals("Стаб. не подтверждена"));
+  check(CameraPolicy.highSpeedRate(60,120,120,true));check(!CameraPolicy.highSpeedRate(60,120,120,false));check(!CameraPolicy.highSpeedRate(60,30,120,true));check(!CameraPolicy.highSpeedRate(60,240,240,true));check(CameraPolicy.highSpeedRate(60,60,60,false));
+  CameraPolicy.Stabilizer wrong=new CameraPolicy.Stabilizer(new int[]{1,3,0});wrong.observe(0,1,30);check(!wrong.actual().equals("Стаб. OIS"));
   System.out.println("CAMERA_POLICY_PASS no stabilization, EIS, preview EIS, OIS, 60fps priority, no unsupported 60fps");
  }
 }

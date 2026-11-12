@@ -12,6 +12,7 @@ final class CameraPolicy {
         if(!demanding&&has(optical,1))plans.add(3);
         plans.add(0);int[] result=new int[plans.size()];for(int i=0;i<result.length;i++)result[i]=plans.get(i);return result;
     }
+    static boolean highSpeedRate(int target,int lower,int upper,boolean throttle){return upper==target||throttle&&target==60&&lower==120&&upper==120;}
     static boolean fpsInRanges(int fps,int[][] ranges){if(ranges==null)return fps<=30;for(int[] range:ranges)if(range[0]<=fps&&fps<=range[1])return true;return false;}
     static final class Stabilizer {
         private final int[] plans;private int index,frames;private boolean confirmed;private String actual="Стаб. проверка…";
@@ -24,10 +25,11 @@ final class CameraPolicy {
         boolean observe(Integer video,Integer optical,int targetFps){
             if(video==null&&optical==null){actual=plans.length==1?"Стаб. недоступна":"Стаб. не подтверждена";return false;}
             int v=video==null?0:video,o=optical==null?0:optical;
-            if(v!=0||o!=0){actual=label(v,o);confirmed=true;frames=0;return false;}
+            if((videoMode()!=0&&v==videoMode())||(opticalMode()!=0&&o==opticalMode())){actual=label(v,o);confirmed=true;frames=0;return false;}
             if(confirmed){confirmed=false;frames=0;}
             if(plans[index]==0){actual=plans.length==1?"Стаб. недоступна":"Стаб. нет в этом режиме";return false;}
-            if(++frames<Math.max(30,targetFps))return false;
+            // Some HALs need several seconds after session start. Do not abandon EIS after one second.
+            if(++frames<Math.max(90,targetFps*3))return false;
             if(index+1<plans.length){index++;frames=0;actual="Стаб. проверка…";return true;}return false;
         }
     }

@@ -22,6 +22,19 @@ final class CameraModes {
         android.util.Range<Integer>[] ranges=camera.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);android.util.Range<Integer> selected=null;
         if(ranges!=null)for(android.util.Range<Integer> r:ranges)if(r.contains(fps)&&(selected==null||Math.abs(r.getUpper()-fps)<Math.abs(selected.getUpper()-fps)||r.getUpper().equals(selected.getUpper())&&r.getLower()>selected.getLower()))selected=r;return selected;
     }
+    static android.util.Range<Integer> highSpeedRange(CameraCharacteristics camera,Size size,int fps){
+        StreamConfigurationMap map=camera.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        if(map==null||fps<=30)return null;
+        try{android.util.Range<Integer> best=null;for(android.util.Range<Integer> range:map.getHighSpeedVideoFpsRangesFor(size))
+            if(CameraPolicy.highSpeedRate(fps,range.getLower(),range.getUpper(),android.os.Build.VERSION.SDK_INT>=29)&&(best==null||range.getUpper()<best.getUpper()||range.getUpper().equals(best.getUpper())&&range.getLower()>best.getLower()))best=range;return best;
+        }catch(IllegalArgumentException ignored){return null;}
+    }
+    static boolean highSpeed(CameraCharacteristics camera,int width,int height,int fps){return !supportsFps(camera,fps)&&highSpeedRange(camera,new Size(width,height),fps)!=null;}
+    static String diagnostic(CameraCharacteristics camera){
+        StreamConfigurationMap map=camera.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);StringBuilder text=new StringBuilder("AE="+Arrays.toString(camera.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)));
+        if(map!=null)try{for(Size size:map.getHighSpeedVideoSizes())text.append("; high-speed ").append(size).append("=").append(Arrays.toString(map.getHighSpeedVideoFpsRangesFor(size)));}catch(Exception ignored){}
+        return text.toString();
+    }
     static boolean sizeSupportsFps(StreamConfigurationMap map,Size size,int fps){
         try{long camera=map.getOutputMinFrameDuration(MediaCodec.class,size),preview=map.getOutputMinFrameDuration(SurfaceTexture.class,size);return Math.max(camera,preview)<=1000000000L/fps+1000000L;}catch(Exception ignored){return fps<=30;}
     }
@@ -32,8 +45,9 @@ final class CameraModes {
         for(Size s:sizes){if(s.getWidth()<320||s.getWidth()>8192||s.getHeight()>8192||(long)s.getWidth()*s.getHeight()>MAX_PIXELS)continue;
             boolean preview=false;for(Size p:previews)if(p.equals(s))preview=true;if(!preview)continue;
             for(int fps:new int[]{60,30,24,15}){
-                if(!supportsFps(camera,fps))continue;
-                if(!sizeSupportsFps(map,s,fps))continue;
+                boolean fast=highSpeed(camera,s.getWidth(),s.getHeight(),fps);
+                if(!supportsFps(camera,fps)&&!fast)continue;
+                if(!fast&&!sizeSupportsFps(map,s,fps))continue;
                 boolean valid=false;
                 for(MediaCodecInfo info:codecs){if(!info.isEncoder()||(Build.VERSION.SDK_INT>=29&&info.isAlias()))continue;
                     try{MediaCodecInfo.CodecCapabilities cap=info.getCapabilitiesForType("video/avc");boolean surface=false;for(int color:cap.colorFormats)if(color==MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)surface=true;
@@ -50,5 +64,11 @@ final class CameraModes {
         for(Mode mode:modes){double s=Math.abs(Math.log((double)mode.width*mode.height/(1280*720)))+Math.abs(mode.fps-30)*.08+Math.abs((double)mode.width/mode.height-16.0/9);
             if(s<score){score=s;best=mode;}}
         return best==null?new Mode(640,480,30):best;
+    }
+    static Mode stabilized(List<Mode> modes){
+        Mode best=null;
+        for(Mode mode:modes)if(mode.width<=1920&&mode.height<=1080&&mode.fps==30&&
+            (best==null||(long)mode.width*mode.height>(long)best.width*best.height))best=mode;
+        return best;
     }
 }

@@ -25,6 +25,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private static final int CAMERA_PERMISSION=10,MIC_PERMISSION=11,SCAN=12;
     private TextureView preview;private CameraOverlay overlay;private CameraManager cameras;
     private ScreenDimmer dimmer;private PhoneUpdater updater;private boolean resumeAfterLanguage;
+    private int stabilizationChoice;private volatile String stabilizationDiagnostic="";
     private int connectionMode;private String endpoint="",secret="",cameraId="";private CameraCharacteristics characteristics;
     private List<CameraModes.Mode> availableModes=new ArrayList<>();private CameraModes.Mode selectedMode;
     private volatile boolean running,captureReady,microphone;private boolean front,fill=true,flashlight,resumed,micPermissionPending,restartAfterMicPermission;
@@ -42,16 +43,16 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void log(String text){synchronized(diagnostics){if(diagnostics.size()>=70)diagnostics.removeFirst();diagnostics.addLast(text);}Log.i("OBSLANCamera",text);}
     private void detail(String text){ui.post(()->overlay.detail(text));}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);Language.set(getPreferences(0).getString("language",Locale.getDefault().getLanguage()));resumeAfterLanguage=getIntent().getBooleanExtra("resume_after_language",false);getIntent().removeExtra("resume_after_language");microphone=resumeAfterLanguage&&getIntent().getBooleanExtra("mic_after_language",false);getIntent().removeExtra("mic_after_language");getWindow().setStatusBarColor(Color.BLACK);getWindow().setNavigationBarColor(Color.BLACK);
+        super.onCreate(state);if(ScreenOffService.active)stopService(new Intent(this,ScreenOffService.class));stabilizationChoice=getPreferences(0).getInt("stabilization",0);Language.set(getPreferences(0).getString("language",Locale.getDefault().getLanguage()));resumeAfterLanguage=getIntent().getBooleanExtra("resume_after_language",false);getIntent().removeExtra("resume_after_language");microphone=resumeAfterLanguage&&getIntent().getBooleanExtra("mic_after_language",false);getIntent().removeExtra("mic_after_language");getWindow().setStatusBarColor(Color.BLACK);getWindow().setNavigationBarColor(Color.BLACK);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xff070b10);preview=new TextureView(this);preview.setSurfaceTextureListener(this);root.addView(preview,new FrameLayout.LayoutParams(-1,-1));overlay=new CameraOverlay(this,this);root.addView(overlay,new FrameLayout.LayoutParams(-1,-1));dimmer=new ScreenDimmer(this,root,()->running);dimmer.automatic(getPreferences(0).getBoolean("auto_dim",false));setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{int l,t,r,b;if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.displayCutout());l=bars.left;t=bars.top;r=bars.right;b=bars.bottom;}else{l=insets.getSystemWindowInsetLeft();t=insets.getSystemWindowInsetTop();r=insets.getSystemWindowInsetRight();b=insets.getSystemWindowInsetBottom();}overlay.setPadding(l,t,r,b);return insets;});
         cameras=(CameraManager)getSystemService(CAMERA_SERVICE);displays=(DisplayManager)getSystemService(DISPLAY_SERVICE);endpoint=getPreferences(0).getString("address","");secret=getPreferences(0).getString("token","");connectionMode=getPreferences(0).getInt("transport",endpoint.startsWith("wss://")?2:0);
-        log("MultiCamera T.E. 0.4.1; "+Build.MANUFACTURER+" "+Build.MODEL+"; Android "+Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
+        log("MultiCamera T.E. 0.4.2; "+Build.MANUFACTURER+" "+Build.MODEL+"; Android "+Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
         orientationListener=new OrientationEventListener(this){public void onOrientationChanged(int degrees){if(degrees==ORIENTATION_UNKNOWN)return;int value=((degrees+45)/90*90)%360;if(physicalOrientation!=value){physicalOrientation=value;updatePreview();}}};
         refreshCamera();layoutOrientation();if(getIntent().getData()!=null)pair(getIntent().getData().toString());updater=new PhoneUpdater(this,this::log);updater.check(false);
     }
-    @Override protected void onResume(){super.onResume();resumed=true;displays.registerDisplayListener(displayListener,ui);if(orientationListener.canDetectOrientation())orientationListener.enable();updatePreview();resumeAfterMicPermission();if(updater!=null)updater.resume();resumeLanguageStream();}
+    @Override protected void onResume(){super.onResume();if(ScreenOffService.active){stopService(new Intent(this,ScreenOffService.class));detail(Language.text("Фоновая передача остановлена. Нажмите запуск для предпросмотра."));}resumed=true;displays.registerDisplayListener(displayListener,ui);if(orientationListener.canDetectOrientation())orientationListener.enable();updatePreview();resumeAfterMicPermission();if(updater!=null)updater.resume();resumeLanguageStream();}
     private void resumeLanguageStream(){if(resumeAfterLanguage&&resumed&&preview.isAvailable()){resumeAfterLanguage=false;start();}}
     private void resumeAfterMicPermission(){if(resumed&&!micPermissionPending&&restartAfterMicPermission){restartAfterMicPermission=false;afterStop(()->start());}}
     @Override protected void onPause(){resumed=false;if(dimmer!=null)dimmer.stop();displays.unregisterDisplayListener(displayListener);if(updater!=null)updater.pause();orientationListener.disable();halt();super.onPause();}
@@ -68,16 +69,28 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             overlay.capabilities(front,hasFlash,minZoom,maxZoom,zoomRatio);overlay.mode(selectedMode==null?Language.text("АВТО · 30"):selectedMode.shortLabel());overlay.microphone(microphone);overlay.fill(fill);overlay.torch(flashlight);
             overlay.fps(selectedMode==null?30:selectedMode.fps);stabilizationState=Language.text("Стаб. авто");overlay.stabilization(stabilizationState);
             log(Language.text("Камера ")+cameraId+": "+availableModes.size()+Language.text(" режимов; sensor=")+sensorOrientation+"; zoom="+minZoom+".."+maxZoom);
+            log(CameraModes.diagnostic(characteristics));
             log(Language.text("Стабилизация: ")+CameraStabilization.capabilities(characteristics)+"; AE FPS="+Arrays.toString(characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)));
         }catch(Exception error){log(Language.text("Камера: ")+EncoderCapture.diagnostic(error));detail(Language.text("Не удалось определить камеру. Откройте диагностику."));}
     }
     private boolean cameraPermission(){if(checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)return true;requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);return false;}
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
         super.onRequestPermissionsResult(request,permissions,grants);boolean granted=grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED;
+        if(request==14){if(granted)screenOff();else detail(Language.text("Для фоновой передачи разрешите уведомления и повторите выбор."));}
         if(request==CAMERA_PERMISSION){if(granted){refreshCamera();detail(Language.text("Камера разрешена. Нажмите кнопку запуска."));}else detail(Language.text("Для передачи изображения нужен доступ к камере."));}
         if(request==MIC_PERMISSION){micPermissionPending=false;microphone=granted;overlay.microphone(granted);if(granted){startAudio();detail(Language.text("Микрофон включён"));}else{stopAudio();detail(Language.text("Доступ к микрофону не разрешён"));}resumeAfterMicPermission();}
     }
-    public void dim(){if(running)dimmer.show();else detail(Language.text("Затемнение доступно во время передачи камеры."));}
+    public void dim(){
+        if(!running){detail(Language.text("Затемнение доступно во время передачи камеры."));return;}
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Экран во время передачи"))
+        .setItems(new String[]{Language.text("Затемнить · двойное касание для возврата"),Language.text("Работать с выключенным экраном")},(dialog,which)->{if(which==0)dimmer.show();else new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Работать с выключенным экраном")).setMessage(Language.text("Передача продолжится в фоновой службе. Нажмите кнопку питания телефона, чтобы действительно выключить экран. Для возврата откройте приложение из уведомления. Скоростной режим 60 FPS в фоне пока заменяется на 30 FPS. Автоматическая блокировка без дополнительных системных прав не выполняется.")).setPositiveButton(Language.text("Продолжить"),(d,w)->screenOff()).setNegativeButton(Language.text("Отмена"),null).show();}).show();
+    }
+    private void screenOff(){
+        if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},14);return;}
+        CameraModes.Mode mode=selectedMode==null?CameraModes.recommended(availableModes):selectedMode;
+        Intent service=new Intent(this,ScreenOffService.class).putExtra("address",endpoint).putExtra("key",secret).putExtra("camera",cameraId).putExtra("width",mode.width).putExtra("height",mode.height).putExtra("fps",mode.fps).putExtra("rotation",rotation()).putExtra("mic",microphone).putExtra("stabilization",stabilizationChoice);
+        halt();try{startForegroundService(service);getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);ui.postDelayed(new Runnable(){int attempts;public void run(){if(ScreenOffService.active)moveTaskToBack(true);else if(++attempts<50)ui.postDelayed(this,100);else detail(Language.text("Не удалось запустить фоновую передачу."));}},100);}catch(Exception error){detail(EncoderCapture.diagnostic(error));}
+    }
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(dimmer!=null)dimmer.focus(focused);}
     @Override public boolean dispatchTouchEvent(MotionEvent event){if(dimmer!=null&&!dimmer.active()&&event.getActionMasked()==MotionEvent.ACTION_DOWN)dimmer.touch();return super.dispatchTouchEvent(event);}
     @Override public boolean onKeyDown(int key,KeyEvent event){if(dimmer!=null&&dimmer.keyDown(key))return true;return super.onKeyDown(key,event);}
@@ -97,15 +110,23 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     public void modes(){
         if(availableModes.isEmpty()){refreshCamera();if(availableModes.isEmpty()){diagnostics();return;}}
         String[] labels=new String[availableModes.size()+1];labels[0]=Language.text("Автоматически · рекомендуется");for(int i=0;i<availableModes.size();i++)labels[i+1]=availableModes.get(i).label();
-        AlertDialog dialog=new AlertDialog.Builder(this,android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(front?Language.text("Режим передней камеры"):Language.text("Режим основной камеры")).setItems(labels,(d,which)->afterStop(()->{selectedMode=which==0?null:availableModes.get(which-1);overlay.mode(selectedMode==null?Language.text("АВТО · 30"):selectedMode.shortLabel());overlay.fps(selectedMode==null?30:selectedMode.fps);if(!endpoint.isEmpty()&&!secret.isEmpty())start();})).setNegativeButton(Language.text("Отмена"),null).create();dialog.show();
+        AlertDialog dialog=new AlertDialog.Builder(this,android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(front?Language.text("Режим передней камеры"):Language.text("Режим основной камеры")).setItems(labels,(d,which)->afterStop(()->{stabilizationChoice=stabilizationChoice==2?2:0;getPreferences(0).edit().putInt("stabilization",stabilizationChoice).apply();selectedMode=which==0?null:availableModes.get(which-1);overlay.mode(selectedMode==null?Language.text("АВТО · 30"):selectedMode.shortLabel());overlay.fps(selectedMode==null?30:selectedMode.fps);if(!endpoint.isEmpty()&&!secret.isEmpty())start();})).setNegativeButton(Language.text("Отмена"),null).create();dialog.show();
     }
     public void fps(){
         CameraModes.Mode current=selectedMode==null?CameraModes.recommended(availableModes):selectedMode;List<CameraModes.Mode> choices=new ArrayList<>();
         for(int rate:new int[]{60,30,24,15}){CameraModes.Mode best=null;double score=Double.MAX_VALUE;for(CameraModes.Mode candidate:availableModes)if(candidate.fps==rate){double distance=Math.abs(Math.log((double)candidate.width*candidate.height/((long)current.width*current.height)))+Math.abs((double)candidate.width/candidate.height-(double)current.width/current.height)*3;if(distance<score){score=distance;best=candidate;}}if(best!=null)choices.add(best);}
         if(choices.isEmpty()){detail(Language.text("Камера не сообщила доступные частоты. Откройте диагностику."));return;}String[] labels=new String[choices.size()];for(int i=0;i<labels.length;i++)labels[i]=choices.get(i).fps+Language.text(" кадров/с · ")+choices.get(i).width+" × "+choices.get(i).height;
-        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Частота кадров выбранной камеры")).setItems(labels,(d,which)->afterStop(()->{selectedMode=choices.get(which);overlay.mode(selectedMode.shortLabel());overlay.fps(selectedMode.fps);if(!endpoint.isEmpty()&&!secret.isEmpty())start();})).setNegativeButton(Language.text("Отмена"),null).show();
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Частота кадров выбранной камеры")).setItems(labels,(d,which)->afterStop(()->{stabilizationChoice=stabilizationChoice==2?2:0;getPreferences(0).edit().putInt("stabilization",stabilizationChoice).apply();selectedMode=choices.get(which);overlay.mode(selectedMode.shortLabel());overlay.fps(selectedMode.fps);if(!endpoint.isEmpty()&&!secret.isEmpty())start();})).setNegativeButton(Language.text("Отмена"),null).show();
     }
-    public void stabilization(){new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Стабилизация камеры")).setMessage(Language.text(stabilizationState)+"\n\n"+CameraStabilization.capabilities(characteristics)+Language.text("\n\nВключается автоматически. EIS — электронная, OIS — оптическая стабилизация. При 60 FPS или высоком разрешении камера может разрешать только OIS либо отключать стабилизацию. Индикатор показывает фактический ответ камеры.")).setPositiveButton("OK",null).show();}
+    public void stabilization(){
+        String[] choices={Language.text("Авто · выбранные разрешение и FPS"),Language.text("Приоритет стабилизации · до 1080p / 30 FPS"),Language.text("Стабилизация выключена")};
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Стабилизация камеры"))
+        .setSingleChoiceItems(choices,stabilizationChoice,(dialog,which)->{
+            if(which==1&&CameraModes.stabilized(availableModes)==null){detail(Language.text("Нет совместимого режима 30 FPS"));return;}
+            dialog.dismiss();afterStop(()->{stabilizationChoice=which;getPreferences(0).edit().putInt("stabilization",which).apply();if(which==1)selectedMode=CameraModes.stabilized(availableModes);overlay.mode(selectedMode==null?Language.text("АВТО · 30"):selectedMode.shortLabel());if(!endpoint.isEmpty()&&!secret.isEmpty())start();});
+        }).setNeutralButton(Language.text("Диагностика камеры"),(dialog,which)->new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Стабилизация камеры")).setMessage(Language.text(stabilizationState)+"\n\n"+CameraStabilization.capabilities(characteristics)+"\n"+stabilizationDiagnostic+"\n\n"+Language.text("EIS видео может работать только в передаваемом потоке. Предпросмотр стабилизируется отдельно, если камера поддерживает preview EIS. Ultra Steady производителя может быть недоступен через Camera2. Режим EIS в метаданных не измеряет силу стабилизации.")).setPositiveButton("OK",null).show()).setNegativeButton(Language.text("Закрыть"),null).show();
+    }
+
     private void afterStop(Runnable action){if(worker!=null){pendingRestart=action;halt();}else action.run();}
     public void settings(){
         LinearLayout body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(22),dp(12),dp(22),dp(12));
@@ -123,7 +144,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     }
     private void usbHelp(){new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Подключение по USB")).setMessage(Language.text("1. Подключите телефон к ПК кабелем с передачей данных.\n2. В настройках Android включите «USB-модем».\n3. На ПК откройте MultiCamera T.E. → Подключить смартфон → USB-кабель. Выберите USB-адаптер и разрешите USB-подключение.\n4. Считайте QR подключения этим приложением и нажмите запуск.\n\nВидео передаётся по кабелю. Возможность USB-модема зависит от прошивки телефона.")).setPositiveButton(Language.text("Настройки USB"),(dialog,which)->{Intent settings=new Intent("android.settings.TETHER_SETTINGS");if(settings.resolveActivity(getPackageManager())==null)settings=new Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS);try{startActivity(settings);}catch(ActivityNotFoundException error){detail(Language.text("Откройте настройки Android → Подключения → USB-модем."));}}).setNegativeButton(Language.text("Закрыть"),null).show();}
     private void diagnostics(){
-        StringBuilder info=new StringBuilder();synchronized(diagnostics){for(String line:diagnostics)info.append(line).append('\n');}
+        StringBuilder info=new StringBuilder(stabilizationDiagnostic+"\n");if(characteristics!=null)info.append(CameraModes.diagnostic(characteristics)).append("\n");synchronized(diagnostics){for(String line:diagnostics)info.append(line).append('\n');}
         TextView text=new TextView(this);text.setText(info.toString());text.setTextColor(Color.WHITE);text.setTextSize(12);text.setTextIsSelectable(true);text.setPadding(dp(18),dp(12),dp(18),dp(12));ScrollView scroll=new ScrollView(this);scroll.addView(text);
         new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Диагностика камеры")).setView(scroll).setPositiveButton(Language.text("Закрыть"),null).setNeutralButton(Language.text("Копировать"),(d,w)->((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("OBS LAN Camera diagnostics",info.toString()))).show();
     }
@@ -161,6 +182,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void updatePreview(){ui.post(()->{if(!preview.isAvailable())return;int display=getWindowManager().getDefaultDisplay().getRotation()*90;Matrix matrix=new Matrix();matrix.setValues(PreviewGeometry.textureMatrix(previewW,previewH,preview.getWidth(),preview.getHeight(),sensorOrientation,display,fill));preview.setTransform(matrix);});}
     private void applyControls(CaptureRequest.Builder b,CameraCharacteristics caps,int fps){
         b.set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_AUTO);
+        b.set(CaptureRequest.CONTROL_CAPTURE_INTENT,CaptureRequest.CONTROL_CAPTURE_INTENT_VIDEO_RECORD);
         int[] af=caps.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);if(af!=null)for(int mode:af)if(mode==CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO){b.set(CaptureRequest.CONTROL_AF_MODE,mode);break;}
         Range<Integer> selected=CameraModes.fpsRange(caps,fps);if(selected!=null)b.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,selected);
         setZoomTorch(b,caps);
@@ -170,8 +192,19 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         if(range!=null)b.set(CaptureRequest.CONTROL_ZOOM_RATIO,range.clamp(zoomRatio));else{Rect active=caps.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);if(active!=null){int halfW=(int)(active.width()/Math.max(1,zoomRatio)/2),halfH=(int)(active.height()/Math.max(1,zoomRatio)/2);b.set(CaptureRequest.SCALER_CROP_REGION,new Rect(active.centerX()-halfW,active.centerY()-halfH,active.centerX()+halfW,active.centerY()+halfH));}}
         if(Boolean.TRUE.equals(caps.get(CameraCharacteristics.FLASH_INFO_AVAILABLE)))b.set(CaptureRequest.FLASH_MODE,flashlight?CaptureRequest.FLASH_MODE_TORCH:CaptureRequest.FLASH_MODE_OFF);
     }
-    private void applyLiveControls(){Handler handler=cameraHandler;if(handler!=null)handler.post(()->{try{CameraCaptureSession s=activeSession;CaptureRequest.Builder b=activeRequest;if(s!=null&&b!=null){setZoomTorch(b,characteristics);s.setRepeatingRequest(b.build(),activeCallback,handler);}}catch(Exception e){log(Language.text("Управление камерой: ")+EncoderCapture.diagnostic(e));}});}
+    private void applyLiveControls(){Handler handler=cameraHandler;if(handler!=null)handler.post(()->{try{CameraCaptureSession s=activeSession;CaptureRequest.Builder b=activeRequest;if(s!=null&&b!=null){setZoomTorch(b,characteristics);repeat(s,b,activeCallback,handler);}}catch(Exception e){log(Language.text("Управление камерой: ")+EncoderCapture.diagnostic(e));}});}
+    private void repeat(CameraCaptureSession session,CaptureRequest.Builder request,CameraCaptureSession.CaptureCallback callback,Handler handler) throws CameraAccessException {
+        if(session instanceof CameraConstrainedHighSpeedCaptureSession){CameraConstrainedHighSpeedCaptureSession fast=(CameraConstrainedHighSpeedCaptureSession)session;fast.setRepeatingBurst(fast.createHighSpeedRequestList(request.build()),callback,handler);}
+        else session.setRepeatingRequest(request.build(),callback,handler);
+    }
+    private List<OutputConfiguration> recordingOutputs(CameraCharacteristics caps,Surface encoder,Surface preview,boolean buffered){
+        OutputConfiguration recording=new OutputConfiguration(encoder),view=new OutputConfiguration(preview);
+        if(Build.VERSION.SDK_INT>=33&&!buffered){long[] uses=caps.get(CameraCharacteristics.SCALER_AVAILABLE_STREAM_USE_CASES);boolean video=false,display=false;if(uses!=null)for(long use:uses){if(use==CameraMetadata.SCALER_AVAILABLE_STREAM_USE_CASES_VIDEO_RECORD)video=true;if(use==CameraMetadata.SCALER_AVAILABLE_STREAM_USE_CASES_PREVIEW)display=true;}
+            if(video&&display){recording.setStreamUseCase(CameraMetadata.SCALER_AVAILABLE_STREAM_USE_CASES_VIDEO_RECORD);view.setStreamUseCase(CameraMetadata.SCALER_AVAILABLE_STREAM_USE_CASES_PREVIEW);}}
+        return Arrays.asList(recording,view);
+    }
     private void stream(Wire channel,String id,CameraCharacteristics caps,CameraModes.Mode requested,Set<String> rejected) throws Exception {
+        if(stabilizationChoice==1){CameraModes.Mode stable=CameraModes.stabilized(CameraModes.discover(caps));if(stable!=null)requested=stable;}
         EncoderCapture capture=EncoderCapture.open(caps,requested,rejected,this::log);previewW=capture.width;previewH=capture.height;updatePreview();
         HandlerThread thread=new HandlerThread("obs-camera-control");thread.start();Handler handler=new Handler(thread.getLooper());cameraHandler=handler;
         AtomicReference<CameraDevice> device=new AtomicReference<>();AtomicReference<CameraCaptureSession> session=new AtomicReference<>();AtomicReference<Exception> failure=new AtomicReference<>();AtomicBoolean closing=new AtomicBoolean();CountDownLatch opened=new CountDownLatch(1),configured=new CountDownLatch(1),closed=new CountDownLatch(1);Surface view=null;
@@ -180,22 +213,27 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             cameras.openCamera(id,new CameraDevice.StateCallback(){public void onOpened(CameraDevice d){if(closing.get()||!running)d.close();else device.set(d);opened.countDown();}public void onDisconnected(CameraDevice d){failure.set(new Exception(Language.text("Камера отключена")));d.close();opened.countDown();}public void onError(CameraDevice d,int error){failure.set(new Exception(Language.text("Камера занята или недоступна: ")+error));d.close();opened.countDown();}public void onClosed(CameraDevice d){closed.countDown();}},handler);
             if(!opened.await(5,TimeUnit.SECONDS)||device.get()==null||failure.get()!=null)throw failure.get()!=null?failure.get():new Exception(Language.text("Камера не ответила"));
             final Surface previewSurface=view;
-            final CameraStabilization stabilization=new CameraStabilization(caps,capture.width,capture.height,capture.fps);
-            final CaptureRequest.Builder request=device.get().createCaptureRequest(CameraDevice.TEMPLATE_RECORD);request.addTarget(capture.surface);request.addTarget(previewSurface);applyControls(request,caps,capture.fps);stabilization.apply(request);
+            final CameraStabilization stabilization=new CameraStabilization(caps,capture.width,capture.height,capture.fps,stabilizationChoice==2,capture.bufferInput);
+            final CaptureRequest.Builder request=device.get().createCaptureRequest(CameraDevice.TEMPLATE_RECORD);request.addTarget(capture.surface);request.addTarget(previewSurface);applyControls(request,caps,capture.fps);if(CameraModes.highSpeed(caps,capture.width,capture.height,capture.fps))request.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,CameraModes.highSpeedRange(caps,new Size(capture.width,capture.height),capture.fps));stabilization.apply(request);
             log(Language.text("Запрос камеры: ")+capture.width+"×"+capture.height+" / "+capture.fps+" FPS; AE="+CameraModes.fpsRange(caps,capture.fps)+"; "+stabilization.requested());
             final CameraCaptureSession.CaptureCallback callback=new CameraCaptureSession.CaptureCallback(){
-                private String last="";
+                private String last="";private long firstTimestamp,lastTimestamp;private int samples;
                 public void onCaptureCompleted(CameraCaptureSession s,CaptureRequest r,TotalCaptureResult result){if(closing.get()||!running)return;
-                    boolean retry=stabilization.result(result,capture.fps);String observed=stabilization.actual();
+                    boolean retry=stabilization.result(result,capture.fps);String observed=stabilizationChoice==2?"Стаб. выкл":stabilization.actual();
+                    Long timestamp=result.get(CaptureResult.SENSOR_TIMESTAMP);if(timestamp!=null){if(firstTimestamp==0)firstTimestamp=timestamp;lastTimestamp=timestamp;samples++;}
+                    if(samples%60==0){double measured=lastTimestamp>firstTimestamp?(samples-1)*1e9/(lastTimestamp-firstTimestamp):0;
+                        stabilizationDiagnostic=String.format(Locale.ROOT,"%d×%d / target %d FPS / measured %.1f FPS / %s / video=%s / OIS=%s / crop=%s",capture.width,capture.height,capture.fps,measured,capture.bufferInput?"YUV fallback":"MediaCodec Surface",result.get(CaptureResult.CONTROL_VIDEO_STABILIZATION_MODE),result.get(CaptureResult.LENS_OPTICAL_STABILIZATION_MODE),result.get(CaptureResult.SCALER_CROP_REGION));
+                    }
                     if(!last.equals(observed)){last=observed;stabilizationState=observed;log(observed+"; AE="+result.get(CaptureResult.CONTROL_AE_TARGET_FPS_RANGE));ui.post(()->overlay.stabilization(observed));}
-                    if(retry)try{stabilization.apply(request);s.setRepeatingRequest(request.build(),this,handler);log(Language.text("Повтор стабилизации: ")+stabilization.requested());}catch(Exception e){log(Language.text("Стабилизация: ")+EncoderCapture.diagnostic(e));}
+                    if(retry)try{stabilization.apply(request);repeat(s,request,this,handler);log(Language.text("Повтор стабилизации: ")+stabilization.requested());}catch(Exception e){log(Language.text("Стабилизация: ")+EncoderCapture.diagnostic(e));}
                 }
             };
             final CameraCaptureSession.StateCallback sessionCallback=new CameraCaptureSession.StateCallback(){
-                public void onConfigured(CameraCaptureSession s){if(closing.get()){s.close();configured.countDown();return;}session.set(s);try{activeSession=s;activeRequest=request;activeCallback=callback;s.setRepeatingRequest(request.build(),callback,handler);}catch(Exception e){failure.set(new EncoderCapture.Failure(capture.key,Language.text("Не удалось настроить режим камеры: ")+EncoderCapture.diagnostic(e),e));}configured.countDown();}
+                public void onConfigured(CameraCaptureSession s){if(closing.get()){s.close();configured.countDown();return;}session.set(s);try{activeSession=s;activeRequest=request;activeCallback=callback;repeat(s,request,callback,handler);}catch(Exception e){failure.set(new EncoderCapture.Failure(capture.key,Language.text("Не удалось настроить режим камеры: ")+EncoderCapture.diagnostic(e),e));}configured.countDown();}
                 public void onConfigureFailed(CameraCaptureSession s){failure.set(new EncoderCapture.Failure(capture.key,Language.text("Камера отклонила ")+capture.width+"×"+capture.height+" / "+capture.fps,null));configured.countDown();}
             };
-            if(Build.VERSION.SDK_INT>=28){SessionConfiguration configuration=new SessionConfiguration(SessionConfiguration.SESSION_REGULAR,Arrays.asList(new OutputConfiguration(capture.surface),new OutputConfiguration(view)),command->handler.post(command),sessionCallback);configuration.setSessionParameters(request.build());device.get().createCaptureSession(configuration);}
+            if(Build.VERSION.SDK_INT>=28){SessionConfiguration configuration=new SessionConfiguration((CameraModes.highSpeed(caps,capture.width,capture.height,capture.fps)?SessionConfiguration.SESSION_HIGH_SPEED:SessionConfiguration.SESSION_REGULAR),recordingOutputs(caps,capture.surface,view,capture.bufferInput||CameraModes.highSpeed(caps,capture.width,capture.height,capture.fps)),command->handler.post(command),sessionCallback);configuration.setSessionParameters(request.build());device.get().createCaptureSession(configuration);}
+            else if(CameraModes.highSpeed(caps,capture.width,capture.height,capture.fps))device.get().createConstrainedHighSpeedCaptureSession(Arrays.asList(capture.surface,view),sessionCallback,handler);
             else device.get().createCaptureSession(Arrays.asList(capture.surface,view),sessionCallback,handler);
             if(!configured.await(5,TimeUnit.SECONDS)||failure.get()!=null)throw failure.get()!=null?failure.get():new EncoderCapture.Failure(capture.key,Language.text("Истекло время настройки камеры"),null);
             captureReady=true;startAudio();ui.post(()->{overlay.status(Language.text("Передача в OBS"));overlay.mode(new CameraModes.Mode(capture.width,capture.height,capture.fps).shortLabel());overlay.fps(capture.fps);});
@@ -203,7 +241,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             while(running&&failure.get()==null){int index=capture.codec.dequeueOutputBuffer(info,10000);
                 if(index==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED){MediaFormat format=capture.codec.getOutputFormat();for(String key:new String[]{"csd-0","csd-1"}){ByteBuffer b=format.getByteBuffer(key);if(b!=null){ByteBuffer copy=b.duplicate();byte[] bytes=new byte[copy.remaining()];copy.get(bytes);channel.send(1,rotation(),0,bytes);}}}
                 else if(index>=0){try{ByteBuffer b=capture.codec.getOutputBuffer(index);if(b!=null&&info.size>0){b.position(info.offset);b.limit(info.offset+info.size);byte[] bytes=new byte[info.size];b.get(bytes);int type=(info.flags&MediaCodec.BUFFER_FLAG_CODEC_CONFIG)!=0?1:2;long timestamp=info.presentationTimeUs;if(type==2){long now=SystemClock.elapsedRealtimeNanos()/1000;if(ptsOffset==Long.MIN_VALUE)ptsOffset=Math.abs(now-timestamp)<10000000L?0:now-timestamp-1000000L/capture.fps;timestamp+=ptsOffset;}channel.send(type,rotation(),timestamp,bytes);if(type==2)frames++;}}finally{capture.codec.releaseOutputBuffer(index,false);}}
-                long now=System.nanoTime();if(now-last>2000000000L){double fps=frames*1e9/(now-last);detail(String.format(Locale.ROOT,Language.text("%d × %d · %.0f кадров/с · микрофон %s"),capture.width,capture.height,fps,microphone?Language.text("вкл"):Language.text("выкл")));frames=0;last=now;}
+                long now=System.nanoTime();if(now-last>2000000000L){double fps=frames*1e9/(now-last);log(String.format(Locale.ROOT,"ENCODED_FPS %.1f target=%d size=%dx%d",fps,capture.fps,capture.width,capture.height));detail(String.format(Locale.ROOT,Language.text("%d × %d · %.0f кадров/с · микрофон %s"),capture.width,capture.height,fps,microphone?Language.text("вкл"):Language.text("выкл")));frames=0;last=now;}
             }
             if(failure.get()!=null)throw failure.get();
         }catch(MediaCodec.CodecException error){throw new EncoderCapture.Failure(capture.key,Language.text("Кодировщик: ")+EncoderCapture.diagnostic(error),error);}
