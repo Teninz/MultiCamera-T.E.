@@ -8,9 +8,11 @@ Wi-Fi, USB, your own Internet relay, optional microphone, stabilization and supp
 
 ## Download and install
 
-- **[Windows installer](https://github.com/Teninz/obs-lan-camera/releases/latest/download/MultiCameraTE-Setup.exe)** — Windows 11 x64.
-- **[Android app](https://github.com/Teninz/obs-lan-camera/releases/latest/download/OBS-LAN-Camera-Android.apk)** — Android 8 or later.
-- [All files and release notes](https://github.com/Teninz/obs-lan-camera/releases/latest) · [SHA-256](https://github.com/Teninz/obs-lan-camera/releases/latest/download/SHA256SUMS.txt).
+- **[Windows installer](https://github.com/Teninz/MultiCamera-T.E./releases/latest/download/MultiCameraTE-Setup.exe)** — Windows 11 x64.
+- **[Android app](https://github.com/Teninz/MultiCamera-T.E./releases/latest/download/OBS-LAN-Camera-Android.apk)** — Android 8 or later.
+- [All files and release notes](https://github.com/Teninz/MultiCamera-T.E./releases/latest) · [SHA-256](https://github.com/Teninz/MultiCamera-T.E./releases/latest/download/SHA256SUMS.txt).
+
+If an older version rejects the update after the repository rename, download the APK/EXE above and install it over the previous version.
 
 Run the EXE and select the cards you need:
 

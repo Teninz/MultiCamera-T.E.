@@ -1,6 +1,6 @@
 #pragma once
 #define OLC_VERSION "0.5.0"
-#define OLC_REPOSITORY "Teninz/obs-lan-camera"
+#define OLC_REPOSITORY "Teninz/MultiCamera-T.E."
 #define OLC_RELEASE_PAGE "https://github.com/" OLC_REPOSITORY "/releases/latest"
 #define OLC_APK_URL "https://github.com/" OLC_REPOSITORY "/releases/download/v" OLC_VERSION "/OBS-LAN-Camera-Android.apk"
 #define OLC_INSTALLER_NAME "OBS-LAN-Camera-Setup.exe"

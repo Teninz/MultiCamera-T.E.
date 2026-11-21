@@ -10,9 +10,11 @@ Wi-Fi, USB, свой интернет-сервер, микрофон, стаби
 
 ## Скачать и установить
 
-- **[Установщик Windows](https://github.com/Teninz/obs-lan-camera/releases/latest/download/MultiCameraTE-Setup.exe)** — Windows 11 x64.
-- **[Приложение Android](https://github.com/Teninz/obs-lan-camera/releases/latest/download/OBS-LAN-Camera-Android.apk)** — Android 8 и новее.
-- [Все файлы и изменения](https://github.com/Teninz/obs-lan-camera/releases/latest) · [SHA-256](https://github.com/Teninz/obs-lan-camera/releases/latest/download/SHA256SUMS.txt).
+- **[Установщик Windows](https://github.com/Teninz/MultiCamera-T.E./releases/latest/download/MultiCameraTE-Setup.exe)** — Windows 11 x64.
+- **[Приложение Android](https://github.com/Teninz/MultiCamera-T.E./releases/latest/download/OBS-LAN-Camera-Android.apk)** — Android 8 и новее.
+- [Все файлы и изменения](https://github.com/Teninz/MultiCamera-T.E./releases/latest) · [SHA-256](https://github.com/Teninz/MultiCamera-T.E./releases/latest/download/SHA256SUMS.txt).
+
+Если старая версия отклоняет обновление после переименования репозитория, скачайте APK/EXE по ссылкам выше и установите поверх прежней версии.
 
 Запустите EXE и отметьте нужные карточки:
 

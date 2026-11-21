@@ -32,7 +32,7 @@ internal static class Native {
 internal sealed class Desktop : Form {
  const string Origin="https://multicamera.internal";
  const string Page=Origin+"/index.html";
- const string Release="https://github.com/Teninz/obs-lan-camera/releases/download/v0.5.0/OBS-LAN-Camera-Android.apk";
+ const string Release="https://github.com/Teninz/MultiCamera-T.E./releases/download/v0.5.0/OBS-LAN-Camera-Android.apk";
  readonly JavaScriptSerializer json=new JavaScriptSerializer();
  readonly WebView2 web=new WebView2();
  readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
@@ -83,7 +83,7 @@ internal sealed class Desktop : Form {
      int adapter=Convert.ToInt32(data["adapter"]);if(adapter<0||adapter>=Native.mc_value(5,0))break;string argument=TextValue(4,adapter);if(argument.Length==0)break;LaunchSetup("--usb-firewall "+argument+" "+Native.mc_value(2,0));break;
     }
     case "install":LaunchSetup(null);break;
-    case "release":Process.Start(new ProcessStartInfo("https://github.com/Teninz/obs-lan-camera/releases/latest"){UseShellExecute=true});break;
+    case "release":Process.Start(new ProcessStartInfo("https://github.com/Teninz/MultiCamera-T.E./releases/latest"){UseShellExecute=true});break;
    }
   }catch(Exception error){if(!(error is ArgumentException||error is InvalidCastException||error is KeyNotFoundException||error is FormatException))Send(new{type="error",key="action_error"});}
  }

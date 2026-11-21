@@ -82,7 +82,7 @@ static LRESULT CALLBACK window_proc(HWND window,UINT message,WPARAM wp,LPARAM lp
     case WM_TIMER:{obs_source_t *source=obs_weak_source_get_source(d->weak);if(!source){DestroyWindow(window);return 0;}bool removed=obs_source_removed(source),connected=!removed&&d->connected&&d->connected(d->context);obs_source_release(source);if(removed){DestroyWindow(window);return 0;}SetWindowTextW(d->state,connected?label("Connected"):label("Waiting"));return 0;}
     case WM_COMMAND:
         if(LOWORD(wp)==IDOK||LOWORD(wp)==IDCANCEL){DestroyWindow(window);return 0;}
-        if(LOWORD(wp)==101){ShellExecuteW(window,L"open",L"https://github.com/Teninz/obs-lan-camera/releases/latest",NULL,NULL,SW_SHOWNORMAL);return 0;}
+        if(LOWORD(wp)==101){ShellExecuteW(window,L"open",L"https://github.com/Teninz/MultiCamera-T.E./releases/latest",NULL,NULL,SW_SHOWNORMAL);return 0;}
         if(LOWORD(wp)==100){char uri[180];snprintf(uri,sizeof(uri),"obslan://%s:%d#%s",d->address,d->port,d->token);wchar_t *text=wide(uri);size_t size=(wcslen(text)+1)*sizeof(wchar_t);HGLOBAL memory=GlobalAlloc(GMEM_MOVEABLE,size);if(memory){void *p=GlobalLock(memory);if(p){memcpy(p,text,size);GlobalUnlock(memory);if(OpenClipboard(window)){EmptyClipboard();if(SetClipboardData(CF_UNICODETEXT,memory))memory=NULL;CloseClipboard();}}if(memory)GlobalFree(memory);}SecureZeroMemory(text,size);bfree(text);return 0;}break;
     case WM_CLOSE:DestroyWindow(window);return 0;
     case WM_NCDESTROY:KillTimer(window,1);SetWindowLongPtrW(window,GWLP_USERDATA,0);active=NULL;free_data(d);return DefWindowProcW(window,message,wp,lp);

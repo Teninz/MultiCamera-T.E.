@@ -21,7 +21,7 @@ final class PhoneUpdater {
     void pause(){resumed=false;}
     void close(){closed=true;cancelled=true;}
     void check(boolean manual){if(busy||closed)return;if(manual&&installReady){requestInstall();return;}busy=true;new Thread(()->{try{
-        JSONObject json=new JSONObject(new String(ReleaseDownload.metadata("https://api.github.com/repos/Teninz/obs-lan-camera/releases/latest"),"UTF-8"));if(json.optBoolean("draft")||json.optBoolean("prerelease"))throw new IOException(Language.text("Нет обычного релиза"));String tag=json.getString("tag_name");
+        JSONObject json=new JSONObject(new String(ReleaseDownload.metadata("https://api.github.com/repos/Teninz/MultiCamera-T.E./releases/latest"),"UTF-8"));if(json.optBoolean("draft")||json.optBoolean("prerelease"))throw new IOException(Language.text("Нет обычного релиза"));String tag=json.getString("tag_name");
         if(!ReleasePolicy.newer(tag,current())){if(manual)message(Language.text("Установлена актуальная версия ")+current());return;}
         JSONArray assets=json.getJSONArray("assets");Release release=null;for(int i=0;i<assets.length();i++){JSONObject asset=assets.getJSONObject(i);if(!ReleasePolicy.APK.equals(asset.optString("name")))continue;String url=asset.getString("browser_download_url"),digest=asset.optString("digest");long size=asset.getLong("size");if(!ReleasePolicy.asset(tag,url,digest,size))continue;release=new Release();release.tag=tag;release.url=url;release.digest=digest;release.size=size;release.body=json.optString("body","");break;}
         if(release==null)throw new IOException(Language.text("В релизе нет проверяемого APK"));final Release found=release;ui.post(()->{if(!closed){pending=found;showPending();}});
