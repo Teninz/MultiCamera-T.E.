@@ -1224,6 +1224,202 @@
       "フォアグラウンドサービスで配信を続けます。電源ボタンで画面をオフにし、通知からアプリを開くと戻れます。高速60 FPSはバックグラウンドでは30 FPSに切り替わります。自動ロックには追加のシステム権限が必要です。",
       "La transmisión continúa en un servicio activo. Pulsa el botón de encendido para apagar la pantalla. Abre la app desde la notificación para volver. El modo rápido de 60 FPS pasa a 30 FPS en segundo plano por ahora. El bloqueo automático requiere privilegios adicionales.",
       "传输将在前台服务中继续。按手机电源键真正息屏，通过通知打开应用即可返回。高速60 FPS在后台暂时切换为30 FPS。自动锁屏需要额外系统权限。"
+    ],
+    "Камера": [
+      "Camera",
+      "Камера",
+      "カメラ",
+      "Cámara",
+      "摄像头"
+    ],
+    "Экран": [
+      "Screen",
+      "Экран",
+      "画面",
+      "Pantalla",
+      "屏幕"
+    ],
+    "Транслировать экран": [
+      "Share screen",
+      "Транслировать экран",
+      "画面を配信",
+      "Transmitir pantalla",
+      "共享屏幕"
+    ],
+    "Источник трансляции": [
+      "Stream source",
+      "Источник трансляции",
+      "配信ソース",
+      "Fuente de transmisión",
+      "传输来源"
+    ],
+    "Экран · 30 FPS": [
+      "Screen · 30 FPS",
+      "Экран · 30 FPS",
+      "画面 · 30 FPS",
+      "Pantalla · 30 FPS",
+      "屏幕 · 30 FPS"
+    ],
+    "Трансляция экрана включена": [
+      "Screen sharing is active",
+      "Трансляция экрана включена",
+      "画面を配信中",
+      "Transmisión de pantalla activa",
+      "正在共享屏幕"
+    ],
+    "Не удалось запустить трансляцию экрана": [
+      "Could not start screen sharing",
+      "Не удалось запустить трансляцию экрана",
+      "画面配信を開始できませんでした",
+      "No se pudo iniciar la transmisión de pantalla",
+      "无法启动屏幕共享"
+    ],
+    "Захват экрана отменён": [
+      "Screen capture cancelled",
+      "Захват экрана отменён",
+      "画面キャプチャをキャンセルしました",
+      "Captura de pantalla cancelada",
+      "已取消屏幕捕获"
+    ],
+    "Нажмите запуск. Android запросит разрешение на захват экрана.": [
+      "Press Start. Android will ask permission to capture the screen.",
+      "Нажмите запуск. Android запросит разрешение на захват экрана.",
+      "開始を押すと、Androidが画面キャプチャの許可を求めます。",
+      "Pulsa Inicio. Android pedirá permiso para capturar la pantalla.",
+      "点击开始，Android 将请求屏幕捕获权限。"
+    ],
+    "Трансляция экрана\n\nНажмите запуск и подтвердите захват в Android": [
+      "Screen sharing\n\nPress Start and approve capture in Android",
+      "Трансляция экрана\n\nНажмите запуск и подтвердите захват в Android",
+      "画面配信\n\n開始を押し、Androidでキャプチャを許可してください",
+      "Transmitir pantalla\n\nPulsa Inicio y confirma la captura en Android",
+      "屏幕共享\n\n点击开始并在 Android 中确认捕获"
+    ],
+    "Для трансляции экрана держите экран включённым.": [
+      "Keep the screen on while sharing it.",
+      "Для трансляции экрана держите экран включённым.",
+      "画面配信中は画面をオンにしてください。",
+      "Mantén la pantalla encendida mientras la transmites.",
+      "共享屏幕时请保持屏幕开启。"
+    ],
+    "Остановите трансляцию, чтобы изменить микрофон.": [
+      "Stop sharing before changing the microphone.",
+      "Остановите трансляцию, чтобы изменить микрофон.",
+      "マイクを変更する前に配信を停止してください。",
+      "Detén la transmisión antes de cambiar el micrófono.",
+      "更改麦克风前请先停止共享。"
+    ],
+    "Экран: до 720p по короткой стороне, 30 FPS, поворот автоматически.": [
+      "Screen: up to 720p on the short edge, 30 FPS, automatic rotation.",
+      "Экран: до 720p по короткой стороне, 30 FPS, поворот автоматически.",
+      "画面：短辺最大720p、30 FPS、自動回転。",
+      "Pantalla: hasta 720p en el lado corto, 30 FPS y rotación automática.",
+      "屏幕：短边最高720p，30 FPS，自动旋转。"
+    ],
+    "Остановите трансляцию, чтобы изменить FPS.": [
+      "Stop sharing before changing FPS.",
+      "Остановите трансляцию, чтобы изменить FPS.",
+      "FPSを変更する前に配信を停止してください。",
+      "Detén la transmisión antes de cambiar los FPS.",
+      "更改帧率前请先停止共享。"
+    ],
+    "Нет совместимых режимов экрана": [
+      "No compatible screen modes",
+      "Нет совместимых режимов экрана",
+      "対応する画面モードがありません",
+      "No hay modos de pantalla compatibles",
+      "没有兼容的屏幕模式"
+    ],
+    "Предел FPS трансляции экрана": [
+      "Screen sharing FPS limit",
+      "Предел FPS трансляции экрана",
+      "画面配信のFPS上限",
+      "Límite de FPS de pantalla",
+      "屏幕共享帧率上限"
+    ],
+    "Фактический FPS зависит от дисплея, Android и нагрузки.": [
+      "Actual FPS depends on the display, Android and load.",
+      "Фактический FPS зависит от дисплея, Android и нагрузки.",
+      "実際のFPSはディスプレイ、Android、負荷に依存します。",
+      "Los FPS reales dependen de la pantalla, Android y la carga.",
+      "实际帧率取决于显示屏、Android 和负载。"
+    ],
+    "Панель производительности": [
+      "Performance panel",
+      "Панель производительности",
+      "パフォーマンスパネル",
+      "Panel de rendimiento",
+      "性能面板"
+    ],
+    "Панель": [
+      "Panel",
+      "Панель",
+      "パネル",
+      "Panel",
+      "面板"
+    ],
+    "Стоп": [
+      "Stop",
+      "Стоп",
+      "停止",
+      "Detener",
+      "停止"
+    ],
+    "В приложение": [
+      "Open app",
+      "В приложение",
+      "アプリを開く",
+      "Abrir app",
+      "打开应用"
+    ],
+    "Свернуть панель": [
+      "Collapse panel",
+      "Свернуть панель",
+      "パネルを折りたたむ",
+      "Contraer panel",
+      "折叠面板"
+    ],
+    "Отправка": [
+      "Send",
+      "Отправка",
+      "送信",
+      "Envío",
+      "发送"
+    ],
+    "Кодирование": [
+      "Encode",
+      "Кодирование",
+      "エンコード",
+      "Codificación",
+      "编码"
+    ],
+    "Включить": [
+      "Enable",
+      "Включить",
+      "有効",
+      "Activar",
+      "启用"
+    ],
+    "Выключить": [
+      "Disable",
+      "Выключить",
+      "無効",
+      "Desactivar",
+      "禁用"
+    ],
+    "Скрыть панель": [
+      "Hide panel",
+      "Скрыть панель",
+      "パネルを非表示",
+      "Ocultar panel",
+      "隐藏面板"
+    ],
+    "FPS, битрейт, время кодирования и отправки. Это не полная задержка до ПК. Видимая панель попадает в трансляцию. Стрелка скрывает её полностью; вернуть можно кнопкой «Панель» в уведомлении.": [
+      "FPS, bitrate, encoding and send time. This is not end-to-end PC latency. The visible panel is included in the stream. The arrow hides it completely; restore it with Panel in the notification.",
+      "FPS, битрейт, время кодирования и отправки. Это не полная задержка до ПК. Видимая панель попадает в трансляцию. Стрелка скрывает её полностью; вернуть можно кнопкой «Панель» в уведомлении.",
+      "FPS、ビットレート、エンコード時間、送信時間です。PCまでの遅延全体ではありません。表示中のパネルは配信映像に映ります。矢印で完全に非表示にし、通知の「パネル」で再表示できます。",
+      "FPS, tasa de bits, tiempo de codificación y envío. No es la latencia total hasta el PC. El panel visible aparece en la transmisión. La flecha lo oculta por completo; restáuralo con Panel en la notificación.",
+      "显示帧率、码率、编码和发送时间。这并非到电脑的端到端延迟。可见面板会出现在直播画面中。点击箭头可完全隐藏，通过通知中的“面板”按钮可恢复。"
     ]
   }
 }

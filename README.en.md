@@ -46,3 +46,11 @@ Click **Install selected**. The desktop app requires **WebView2 Runtime**; the p
 - Connection trouble? Check the shared router, guest Wi-Fi isolation and local firewall permissions.
 
 **Experimental release.** [Tests and limitations](VERIFICATION.md) (Russian) · [Updates and removal](docs/MAINTENANCE.md) (Russian) · [Build instructions](docs/BUILD.md) · [GPL-2.0-or-later](COPYING).
+
+## Share your phone screen
+
+On your phone, tap **Camera → Share screen → Start**, then approve the Android capture prompt. The app moves to the background: open the apps you want to share. Their video appears in the same desktop slot and OBS source. Stop from the notification or the app. Rotation is handled automatically; up to 1280 pixels on the long edge, 720 on the short edge. Tap the screen mode button to choose an FPS limit, up to 240 FPS where the display and encoder support it. Actual capture FPS depends on Android and load and is shown separately.
+
+Enable the microphone **before** starting if needed. Internal app audio is not included yet. Camera zoom, flash and stabilization do not apply to screen mode. Protected Android windows/DRM video may appear black. Keep the screen on. After Android stops capture, a new session requires fresh consent.
+
+Enable the optional ⓘ panel with Android’s “Display over other apps” permission. The translucent bar shows actual FPS, bitrate, send and encoding time, with large icon buttons to stop, open the app and fully hide the panel. Restore it with Panel in the notification. Disable it from ⓘ. These measurements are not end-to-end PC display latency; the visible panel is included in capture. Hiding removes its entire window without adding a black rectangle. Windows virtual cameras still output 30/60 FPS; OBS output depends on project settings.

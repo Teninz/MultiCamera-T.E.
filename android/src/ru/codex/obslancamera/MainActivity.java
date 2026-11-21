@@ -22,7 +22,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener,CameraOverlay.Actions {
-    private static final int CAMERA_PERMISSION=10,MIC_PERMISSION=11,SCAN=12;
+    private static final int CAMERA_PERMISSION=10,MIC_PERMISSION=11,SCAN=12,SCREEN_CAPTURE=15;
+    private boolean screenSource,screenConsentPending;private int screenFps=30;
     private TextureView preview;private CameraOverlay overlay;private CameraManager cameras;
     private ScreenDimmer dimmer;private PhoneUpdater updater;private boolean resumeAfterLanguage;
     private int stabilizationChoice;private volatile String stabilizationDiagnostic="";
@@ -38,6 +39,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private volatile float zoomRatio=1;private float minZoom=1,maxZoom=1;private boolean hasFlash;
     private volatile Handler cameraHandler;private volatile CameraCaptureSession activeSession;private volatile CaptureRequest.Builder activeRequest;
     private volatile CameraCaptureSession.CaptureCallback activeCallback;private volatile String stabilizationState=Language.text("Стаб. определение…");
+    private final Runnable screenStatus=new Runnable(){public void run(){if(screenSource){if(ScreenCaptureService.active)screenConsentPending=false;overlay.active(ScreenCaptureService.active);overlay.status(ScreenCaptureService.active?ScreenCaptureService.status:Language.text("Не подключено"));}if(resumed)ui.postDelayed(this,500);}};
     private final Runnable watchdog=new Runnable(){public void run(){Wire w=wire;if(w!=null&&w.writeStarted!=0&&System.nanoTime()-w.writeStarted>1500000000L)w.close();if(running)ui.postDelayed(this,300);}};
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
     private void log(String text){synchronized(diagnostics){if(diagnostics.size()>=70)diagnostics.removeFirst();diagnostics.addLast(text);}Log.i("OBSLANCamera",text);}
@@ -48,14 +50,14 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         FrameLayout root=new FrameLayout(this);root.setBackgroundColor(0xff070b10);preview=new TextureView(this);preview.setSurfaceTextureListener(this);root.addView(preview,new FrameLayout.LayoutParams(-1,-1));overlay=new CameraOverlay(this,this);root.addView(overlay,new FrameLayout.LayoutParams(-1,-1));dimmer=new ScreenDimmer(this,root,()->running);dimmer.automatic(getPreferences(0).getBoolean("auto_dim",false));setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{int l,t,r,b;if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.displayCutout());l=bars.left;t=bars.top;r=bars.right;b=bars.bottom;}else{l=insets.getSystemWindowInsetLeft();t=insets.getSystemWindowInsetTop();r=insets.getSystemWindowInsetRight();b=insets.getSystemWindowInsetBottom();}overlay.setPadding(l,t,r,b);return insets;});
         cameras=(CameraManager)getSystemService(CAMERA_SERVICE);displays=(DisplayManager)getSystemService(DISPLAY_SERVICE);endpoint=getPreferences(0).getString("address","");secret=getPreferences(0).getString("token","");connectionMode=getPreferences(0).getInt("transport",endpoint.startsWith("wss://")?2:0);
-        log("MultiCamera T.E. 0.4.3; "+Build.MANUFACTURER+" "+Build.MODEL+"; Android "+Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
+        log("MultiCamera T.E. 0.5.0; "+Build.MANUFACTURER+" "+Build.MODEL+"; Android "+Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
         orientationListener=new OrientationEventListener(this){public void onOrientationChanged(int degrees){if(degrees==ORIENTATION_UNKNOWN)return;int value=((degrees+45)/90*90)%360;if(physicalOrientation!=value){physicalOrientation=value;updatePreview();}}};
-        refreshCamera();layoutOrientation();if(getIntent().getData()!=null)pair(getIntent().getData().toString());updater=new PhoneUpdater(this,this::log);updater.check(false);
+        screenFps=getPreferences(0).getInt("screen_fps",30);overlay.screenFps(screenFps);screenSource=getPreferences(0).getBoolean("screen_source",false);refreshCamera();overlay.source(screenSource);preview.setAlpha(screenSource?0f:1f);layoutOrientation();if(getIntent().getData()!=null)pair(getIntent().getData().toString());updater=new PhoneUpdater(this,this::log);updater.check(false);
     }
-    @Override protected void onResume(){super.onResume();if(ScreenOffService.active){stopService(new Intent(this,ScreenOffService.class));detail(Language.text("Фоновая передача остановлена. Нажмите запуск для предпросмотра."));}resumed=true;displays.registerDisplayListener(displayListener,ui);if(orientationListener.canDetectOrientation())orientationListener.enable();updatePreview();resumeAfterMicPermission();if(updater!=null)updater.resume();resumeLanguageStream();}
+    @Override protected void onResume(){super.onResume();if(ScreenOffService.active){stopService(new Intent(this,ScreenOffService.class));detail(Language.text("Фоновая передача остановлена. Нажмите запуск для предпросмотра."));}resumed=true;ui.removeCallbacks(screenStatus);ui.post(screenStatus);displays.registerDisplayListener(displayListener,ui);if(orientationListener.canDetectOrientation())orientationListener.enable();updatePreview();resumeAfterMicPermission();if(updater!=null)updater.resume();resumeLanguageStream();}
     private void resumeLanguageStream(){if(resumeAfterLanguage&&resumed&&preview.isAvailable()){resumeAfterLanguage=false;start();}}
     private void resumeAfterMicPermission(){if(resumed&&!micPermissionPending&&restartAfterMicPermission){restartAfterMicPermission=false;afterStop(()->start());}}
-    @Override protected void onPause(){resumed=false;if(dimmer!=null)dimmer.stop();displays.unregisterDisplayListener(displayListener);if(updater!=null)updater.pause();orientationListener.disable();halt();super.onPause();}
+    @Override protected void onPause(){resumed=false;ui.removeCallbacks(screenStatus);if(dimmer!=null)dimmer.stop();displays.unregisterDisplayListener(displayListener);if(updater!=null)updater.pause();orientationListener.disable();halt();super.onPause();}
     @Override protected void onDestroy(){if(dimmer!=null)dimmer.close();if(updater!=null)updater.close();super.onDestroy();}
     @Override public void onConfigurationChanged(Configuration config){super.onConfigurationChanged(config);layoutOrientation();updatePreview();}
     private void layoutOrientation(){overlay.landscape(getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);}
@@ -76,11 +78,20 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private boolean cameraPermission(){if(checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)return true;requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);return false;}
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
         super.onRequestPermissionsResult(request,permissions,grants);boolean granted=grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED;
+        if(request==16){if(granted)screenStart();else detail(Language.text("Для фоновой передачи разрешите уведомления и повторите выбор."));}
         if(request==14){if(granted)screenOff();else detail(Language.text("Для фоновой передачи разрешите уведомления и повторите выбор."));}
         if(request==CAMERA_PERMISSION){if(granted){refreshCamera();detail(Language.text("Камера разрешена. Нажмите кнопку запуска."));}else detail(Language.text("Для передачи изображения нужен доступ к камере."));}
         if(request==MIC_PERMISSION){micPermissionPending=false;microphone=granted;overlay.microphone(granted);if(granted){startAudio();detail(Language.text("Микрофон включён"));}else{stopAudio();detail(Language.text("Доступ к микрофону не разрешён"));}resumeAfterMicPermission();}
     }
+    public void performance(){
+        new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Панель производительности")).setMessage(Language.text("FPS, битрейт, время кодирования и отправки. Это не полная задержка до ПК. Видимая панель попадает в трансляцию. Стрелка скрывает её полностью; вернуть можно кнопкой «Панель» в уведомлении.")).setPositiveButton(Language.text("Включить"),(d,w)->{
+            getPreferences(0).edit().putBoolean("screen_overlay",true).apply();if(!android.provider.Settings.canDrawOverlays(this))startActivityForResult(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())),17);else refreshPerformance();
+        }).setNeutralButton(Language.text("Выключить"),(d,w)->{getPreferences(0).edit().putBoolean("screen_overlay",false).apply();refreshPerformance();}).setNegativeButton(Language.text("Закрыть"),null).show();
+    }
+    private void refreshPerformance(){if(ScreenCaptureService.active)startService(new Intent(this,ScreenCaptureService.class).setAction("overlay-refresh").putExtra("overlay",getPreferences(0).getBoolean("screen_overlay",false)));}
+    public void source(){new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Источник трансляции")).setSingleChoiceItems(new String[]{Language.text("Камера"),Language.text("Транслировать экран")},screenSource?1:0,(dialog,which)->{dialog.dismiss();afterStop(()->{stopService(new Intent(this,ScreenCaptureService.class));screenSource=which==1;getPreferences(0).edit().putBoolean("screen_source",screenSource).apply();overlay.source(screenSource);preview.setAlpha(screenSource?0f:1f);overlay.active(false);detail(Language.text(screenSource?"Нажмите запуск. Android запросит разрешение на захват экрана.":"Нажмите кнопку запуска."));});}).setNegativeButton(Language.text("Отмена"),null).show();}
     public void dim(){
+        if(screenSource){detail(Language.text("Для трансляции экрана держите экран включённым."));return;}
         if(!running){detail(Language.text("Затемнение доступно во время передачи камеры."));return;}
         new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Экран во время передачи"))
         .setItems(new String[]{Language.text("Затемнить · двойное касание для возврата"),Language.text("Работать с выключенным экраном")},(dialog,which)->{if(which==0)dimmer.show();else new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Работать с выключенным экраном")).setMessage(Language.text("Передача продолжится в фоновой службе. Нажмите кнопку питания телефона, чтобы действительно выключить экран. Для возврата откройте приложение из уведомления. Скоростной режим 60 FPS в фоне пока заменяется на 30 FPS. Автоматическая блокировка без дополнительных системных прав не выполняется.")).setPositiveButton(Language.text("Продолжить"),(d,w)->screenOff()).setNegativeButton(Language.text("Отмена"),null).show();}).show();
@@ -96,23 +107,32 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override public boolean onKeyDown(int key,KeyEvent event){if(dimmer!=null&&dimmer.keyDown(key))return true;return super.onKeyDown(key,event);}
     @Override public boolean onKeyUp(int key,KeyEvent event){if(dimmer!=null&&dimmer.keyUp(key))return true;return super.onKeyUp(key,event);}
     @Override public void onBackPressed(){if(dimmer!=null&&dimmer.active()){dimmer.restore();return;}super.onBackPressed();}
-    public void shutter(){if(running)halt();else if(endpoint.isEmpty()||secret.isEmpty())settings();else start();}
+    public void shutter(){if(screenSource){if(ScreenCaptureService.active){stopService(new Intent(this,ScreenCaptureService.class));overlay.active(false);}else if(endpoint.isEmpty()||secret.isEmpty())settings();else screenStart();return;}if(running)halt();else if(endpoint.isEmpty()||secret.isEmpty())settings();else start();}
     public void scan(){if(!cameraPermission())return;afterStop(()->startActivityForResult(new Intent(this,ScanActivity.class),SCAN));}
     public void flip(){afterStop(()->{front=!front;flashlight=false;zoomRatio=1;selectedMode=null;refreshCamera();if(!endpoint.isEmpty()&&!secret.isEmpty())start();});}
     public void fit(){fill=!fill;overlay.fill(fill);updatePreview();}
     public void torch(){if(!hasFlash)return;flashlight=!flashlight;overlay.torch(flashlight);applyLiveControls();}
     public void zoom(float value){zoomRatio=Math.max(minZoom,Math.min(maxZoom,value));overlay.zoom(zoomRatio);applyLiveControls();}
     public void mic(){
+        if(screenSource&&ScreenCaptureService.active){detail(Language.text("Остановите трансляцию, чтобы изменить микрофон."));return;}
         if(microphone){microphone=false;stopAudio();overlay.microphone(false);detail(Language.text("Микрофон выключен"));return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){restartAfterMicPermission=running;micPermissionPending=true;requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},MIC_PERMISSION);return;}
         microphone=true;overlay.microphone(true);startAudio();
     }
     public void modes(){
+        if(screenSource){fps();return;}
         if(availableModes.isEmpty()){refreshCamera();if(availableModes.isEmpty()){diagnostics();return;}}
         String[] labels=new String[availableModes.size()+1];labels[0]=Language.text("Автоматически · рекомендуется");for(int i=0;i<availableModes.size();i++)labels[i+1]=availableModes.get(i).label();
         AlertDialog dialog=new AlertDialog.Builder(this,android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(front?Language.text("Режим передней камеры"):Language.text("Режим основной камеры")).setItems(labels,(d,which)->afterStop(()->{stabilizationChoice=stabilizationChoice==2?2:0;getPreferences(0).edit().putInt("stabilization",stabilizationChoice).apply();selectedMode=which==0?null:availableModes.get(which-1);overlay.mode(selectedMode==null?Language.text("АВТО · 30"):selectedMode.shortLabel());overlay.fps(selectedMode==null?30:selectedMode.fps);if(!endpoint.isEmpty()&&!secret.isEmpty())start();})).setNegativeButton(Language.text("Отмена"),null).create();dialog.show();
     }
     public void fps(){
+        if(screenSource){
+            if(ScreenCaptureService.active){detail(Language.text("Остановите трансляцию, чтобы изменить FPS."));return;}
+            android.util.DisplayMetrics metrics=new android.util.DisplayMetrics();getWindowManager().getDefaultDisplay().getRealMetrics(metrics);int[] size=ScreenCapturePolicy.size(metrics.widthPixels,metrics.heightPixels);
+            List<Integer> rates=ScreenCaptureModes.rates(this,size[0],size[1]);if(rates.isEmpty()){detail(Language.text("Нет совместимых режимов экрана"));return;}
+            String[] labels=new String[rates.size()];for(int i=0;i<labels.length;i++)labels[i]=rates.get(i)+" FPS";
+            new AlertDialog.Builder(this,AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(Language.text("Предел FPS трансляции экрана")).setSingleChoiceItems(labels,rates.indexOf(screenFps),(d,which)->{screenFps=rates.get(which);getPreferences(0).edit().putInt("screen_fps",screenFps).apply();overlay.screenFps(screenFps);d.dismiss();detail(Language.text("Фактический FPS зависит от дисплея, Android и нагрузки."));}).setNegativeButton(Language.text("Закрыть"),null).show();return;
+        }
         CameraModes.Mode current=selectedMode==null?CameraModes.recommended(availableModes):selectedMode;List<CameraModes.Mode> choices=new ArrayList<>();
         for(int rate:new int[]{60,30,24,15}){CameraModes.Mode best=null;double score=Double.MAX_VALUE;for(CameraModes.Mode candidate:availableModes)if(candidate.fps==rate){double distance=Math.abs(Math.log((double)candidate.width*candidate.height/((long)current.width*current.height)))+Math.abs((double)candidate.width/candidate.height-(double)current.width/current.height)*3;if(distance<score){score=distance;best=candidate;}}if(best!=null)choices.add(best);}
         if(choices.isEmpty()){detail(Language.text("Камера не сообщила доступные частоты. Откройте диагностику."));return;}String[] labels=new String[choices.size()];for(int i=0;i<labels.length;i++)labels[i]=choices.get(i).fps+Language.text(" кадров/с · ")+choices.get(i).width+" × "+choices.get(i).height;
@@ -153,8 +173,17 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         else if("multicamera".equals(uri.getScheme())&&"connect".equals(uri.getHost())){String relay=uri.getQueryParameter("relay");java.net.URI server=new java.net.URI(relay);if(!"wss".equalsIgnoreCase(server.getScheme())||server.getHost()==null||server.getUserInfo()!=null||server.getFragment()!=null)throw new IllegalArgumentException();endpoint=relay;connectionMode=2;}
         else throw new IllegalArgumentException();secret=uri.getFragment().toLowerCase(Locale.ROOT);getPreferences(0).edit().putString("address",endpoint).putString("token",secret).putInt("transport",connectionMode).apply();detail(Language.text("Сопряжение сохранено. Нажмите круглую кнопку для запуска."));
     }catch(Exception e){detail(Language.text("Это не QR подключения OBS LAN Camera."));}}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==SCAN&&result==RESULT_OK&&data!=null)pair(data.getStringExtra("pair"));}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==17){refreshPerformance();return;}if(request==SCREEN_CAPTURE){screenConsentPending=false;if(result==RESULT_OK&&data!=null&&screenSource){Intent capture=new Intent(this,ScreenCaptureService.class).putExtra("overlay",getPreferences(0).getBoolean("screen_overlay",false)).putExtra("consent",data).putExtra("result",result).putExtra("fps",screenFps).putExtra("address",endpoint).putExtra("key",secret).putExtra("mic",microphone);try{screenConsentPending=true;startForegroundService(capture);ui.postDelayed(()->screenConsentPending=false,5000);ui.postDelayed(()->{if(ScreenCaptureService.active&&resumed)moveTaskToBack(true);},700);}catch(Exception error){detail(Language.text("Не удалось запустить трансляцию экрана"));}}else detail(Language.text("Захват экрана отменён"));return;}if(request==SCAN&&result==RESULT_OK&&data!=null)pair(data.getStringExtra("pair"));}
+    private void screenStart(){
+        if(screenConsentPending||ScreenCaptureService.active)return;
+        if(!secret.matches("[0-9a-f]{32}")||endpoint.isEmpty()){settings();return;}
+        if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},16);return;}
+        stopService(new Intent(this,ScreenOffService.class));screenConsentPending=true;
+        android.media.projection.MediaProjectionManager projection=(android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+        try{Intent consent=Build.VERSION.SDK_INT>=34?projection.createScreenCaptureIntent(android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay()):projection.createScreenCaptureIntent();startActivityForResult(consent,SCREEN_CAPTURE);}catch(Exception error){screenConsentPending=false;detail(Language.text("Не удалось запустить трансляцию экрана"));}
+    }
     private void start(){
+        if(screenSource){screenStart();return;}
         if(running||worker!=null||!resumed)return;if(!cameraPermission())return;if(!preview.isAvailable()){detail(Language.text("Ожидаем предпросмотр. Нажмите запуск ещё раз."));return;}
         String host=endpoint;int port=34872;final boolean remote=endpoint.startsWith("wss://");try{if(remote){java.net.URI uri=new java.net.URI(endpoint);if(uri.getHost()==null||uri.getUserInfo()!=null||uri.getFragment()!=null)throw new Exception();}else{int colon=endpoint.indexOf(':');if(colon>=0){host=endpoint.substring(0,colon);port=Integer.parseInt(endpoint.substring(colon+1));}if(port<1024||port>65535)throw new Exception();}if(!secret.matches("[0-9a-f]{32}"))throw new Exception();}catch(Exception e){detail(Language.text("Проверьте адрес, порт и ключ подключения."));settings();return;}
         final String target=host,key=secret,id=cameraId;final int targetPort=port;final CameraCharacteristics caps=characteristics;final CameraModes.Mode requested=selectedMode;
